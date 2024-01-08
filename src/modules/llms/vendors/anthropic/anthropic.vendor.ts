@@ -1,19 +1,21 @@
-import { apiAsync } from '~/common/util/trpc.client';
+import { backendCaps } from '~/modules/backend/state-backend';
 
 import { AnthropicIcon } from '~/common/components/icons/AnthropicIcon';
+import { apiAsync, apiQuery } from '~/common/util/trpc.client';
 
+import type { AnthropicAccessSchema } from '../../server/anthropic/anthropic.router';
 import type { IModelVendor } from '../IModelVendor';
-import type { AnthropicAccessSchema } from '../../transports/server/anthropic.router';
-import type { VChatMessageIn, VChatMessageOrFunctionCallOut, VChatMessageOut } from '../../transports/chatGenerate';
+import type { VChatMessageOut } from '../../llm.client';
+import { unifiedStreamingClient } from '../unifiedStreamingClient';
 
-import { LLMOptionsOpenAI } from '../openai/openai.vendor';
+import { FALLBACK_LLM_RESPONSE_TOKENS, FALLBACK_LLM_TEMPERATURE, LLMOptionsOpenAI } from '../openai/openai.vendor';
 import { OpenAILLMOptions } from '../openai/OpenAILLMOptions';
 
 import { AnthropicSourceSetup } from './AnthropicSourceSetup';
 
 
 // special symbols
-export const isValidAnthropicApiKey = (apiKey?: string) => !!apiKey && (apiKey.startsWith('sk-') ? apiKey.length > 40 : apiKey.length >= 40);
+export const isValidAnthropicApiKey = (apiKey?: string) => !!apiKey && (apiKey.startsWith('sk-') ? apiKey.length >= 39 : apiKey.length >= 40);
 
 export interface SourceSetupAnthropic {
   anthropicKey: string;
@@ -21,13 +23,13 @@ export interface SourceSetupAnthropic {
   heliconeKey: string;
 }
 
-export const ModelVendorAnthropic: IModelVendor<SourceSetupAnthropic, LLMOptionsOpenAI, AnthropicAccessSchema> = {
+export const ModelVendorAnthropic: IModelVendor<SourceSetupAnthropic, AnthropicAccessSchema, LLMOptionsOpenAI> = {
   id: 'anthropic',
   name: 'Anthropic',
   rank: 13,
   location: 'cloud',
   instanceLimit: 1,
-  hasServerKey: !!process.env.HAS_SERVER_KEY_ANTHROPIC,
+  hasBackendCap: () => backendCaps().hasLlmAnthropic,
 
   // components
   Icon: AnthropicIcon,
@@ -35,43 +37,48 @@ export const ModelVendorAnthropic: IModelVendor<SourceSetupAnthropic, LLMOptions
   LLMOptionsComponent: OpenAILLMOptions,
 
   // functions
-  getAccess: (partialSetup): AnthropicAccessSchema => ({
+  getTransportAccess: (partialSetup): AnthropicAccessSchema => ({
     dialect: 'anthropic',
     anthropicKey: partialSetup?.anthropicKey || '',
     anthropicHost: partialSetup?.anthropicHost || null,
     heliconeKey: partialSetup?.heliconeKey || null,
   }),
-  callChatGenerate(llm, messages: VChatMessageIn[], maxTokens?: number): Promise<VChatMessageOut> {
-    return anthropicCallChatGenerate(this.getAccess(llm._source.setup), llm.options, messages, /*null, null,*/ maxTokens);
+
+
+  // List Models
+  rpcUpdateModelsQuery: (access, enabled, onSuccess) => {
+    return apiQuery.llmAnthropic.listModels.useQuery({ access }, {
+      enabled: enabled,
+      onSuccess: onSuccess,
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+    });
   },
-  callChatGenerateWF(): Promise<VChatMessageOrFunctionCallOut> {
-    throw new Error('Anthropic does not support "Functions" yet');
+
+  // Chat Generate (non-streaming) with Functions
+  rpcChatGenerateOrThrow: async (access, llmOptions, messages, functions, forceFunctionName, maxTokens) => {
+    if (functions?.length || forceFunctionName)
+      throw new Error('Anthropic does not support functions');
+
+    const { llmRef, llmTemperature, llmResponseTokens } = llmOptions;
+    try {
+      return await apiAsync.llmAnthropic.chatGenerate.mutate({
+        access,
+        model: {
+          id: llmRef,
+          temperature: llmTemperature ?? FALLBACK_LLM_TEMPERATURE,
+          maxTokens: maxTokens || llmResponseTokens || FALLBACK_LLM_RESPONSE_TOKENS,
+        },
+        history: messages,
+      }) as VChatMessageOut;
+    } catch (error: any) {
+      const errorMessage = error?.message || error?.toString() || 'Anthropic Chat Generate Error';
+      console.error(`anthropic.rpcChatGenerateOrThrow: ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
   },
+
+  // Chat Generate (streaming) with Functions
+  streamingChatGenerateOrThrow: unifiedStreamingClient,
+
 };
-
-
-/**
- * This function either returns the LLM message, or function calls, or throws a descriptive error string
- */
-async function anthropicCallChatGenerate<TOut = VChatMessageOut>(
-  access: AnthropicAccessSchema, llmOptions: Partial<LLMOptionsOpenAI>, messages: VChatMessageIn[],
-  // functions: VChatFunctionIn[] | null, forceFunctionName: string | null,
-  maxTokens?: number,
-): Promise<TOut> {
-  const { llmRef, llmTemperature = 0.5, llmResponseTokens } = llmOptions;
-  try {
-    return await apiAsync.llmAnthropic.chatGenerate.mutate({
-      access,
-      model: {
-        id: llmRef!,
-        temperature: llmTemperature,
-        maxTokens: maxTokens || llmResponseTokens || 1024,
-      },
-      history: messages,
-    }) as TOut;
-  } catch (error: any) {
-    const errorMessage = error?.message || error?.toString() || 'Anthropic Chat Generate Error';
-    console.error(`anthropicCallChatGenerate: ${errorMessage}`);
-    throw new Error(errorMessage);
-  }
-}

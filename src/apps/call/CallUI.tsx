@@ -1,44 +1,48 @@
 import * as React from 'react';
 import { shallow } from 'zustand/shallow';
-import { useRouter } from 'next/router';
 
 import { Box, Card, ListItemDecorator, MenuItem, Switch, Typography } from '@mui/joy';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CallEndIcon from '@mui/icons-material/CallEnd';
 import CallIcon from '@mui/icons-material/Call';
+import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined';
 import MicIcon from '@mui/icons-material/Mic';
 import MicNoneIcon from '@mui/icons-material/MicNone';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 
 import { useChatLLMDropdown } from '../chat/components/applayout/useLLMDropdown';
 
 import { EXPERIMENTAL_speakTextStream } from '~/modules/elevenlabs/elevenlabs.client';
 import { SystemPurposeId, SystemPurposes } from '../../data';
-import { VChatMessageIn } from '~/modules/llms/transports/chatGenerate';
-import { streamChat } from '~/modules/llms/transports/streamChat';
-import { useVoiceDropdown } from '~/modules/elevenlabs/useVoiceDropdown';
+import { llmStreamingChatGenerate, VChatMessageIn } from '~/modules/llms/llm.client';
+import { useElevenLabsVoiceDropdown } from '~/modules/elevenlabs/useElevenLabsVoiceDropdown';
 
 import { Link } from '~/common/components/Link';
 import { SpeechResult, useSpeechRecognition } from '~/common/components/useSpeechRecognition';
 import { conversationTitle, createDMessage, DMessage, useChatStore } from '~/common/state/store-chats';
 import { playSoundUrl, usePlaySoundUrl } from '~/common/util/audioUtils';
-import { useLayoutPluggable } from '~/common/layout/store-applayout';
+import { usePluggableOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
 
 import { CallAvatar } from './components/CallAvatar';
 import { CallButton } from './components/CallButton';
 import { CallMessage } from './components/CallMessage';
 import { CallStatus } from './components/CallStatus';
+import { launchAppChat, ROUTE_APP_CHAT } from '~/common/app.routes';
 
 
 function CallMenuItems(props: {
   pushToTalk: boolean,
   setPushToTalk: (pushToTalk: boolean) => void,
-  disableVoiceSelector: boolean,
+  override: boolean,
+  setOverride: (overridePersonaVoice: boolean) => void,
 }) {
 
   // external state
-  const { voicesDropdown } = useVoiceDropdown(false, props.disableVoiceSelector);
+  const { voicesDropdown } = useElevenLabsVoiceDropdown(false, !props.override);
 
   const handlePushToTalkToggle = () => props.setPushToTalk(!props.pushToTalk);
+
+  const handleChangeVoiceToggle = () => props.setOverride(!props.override);
 
   return <>
 
@@ -48,8 +52,20 @@ function CallMenuItems(props: {
       <Switch checked={props.pushToTalk} onChange={handlePushToTalkToggle} sx={{ ml: 'auto' }} />
     </MenuItem>
 
+    <MenuItem onClick={handleChangeVoiceToggle}>
+      <ListItemDecorator><RecordVoiceOverIcon /></ListItemDecorator>
+      Change Voice
+      <Switch checked={props.override} onChange={handleChangeVoiceToggle} sx={{ ml: 'auto' }} />
+    </MenuItem>
+
     <MenuItem>
+      <ListItemDecorator>{' '}</ListItemDecorator>
       {voicesDropdown}
+    </MenuItem>
+
+    <MenuItem component={Link} href='https://github.com/enricoros/big-agi/issues/175' target='_blank'>
+      <ListItemDecorator><ChatOutlinedIcon /></ListItemDecorator>
+      Voice Calls Feedback
     </MenuItem>
 
   </>;
@@ -62,17 +78,16 @@ export function CallUI(props: {
 }) {
 
   // state
-  const [pushToTalk, setPushToTalk] = React.useState(true);
-  const [avatarClickCount, setAvatarClickCount] = React.useState<number>(0);
-  const [stage, setStage] = React.useState<'ring' | 'declined' | 'connected' | 'ended'>('ring');
-  // const [micMuted, setMicMuted] = React.useState(false);
-  const [callMessages, setCallMessages] = React.useState<DMessage[]>([]);
-  const [personaTextInterim, setPersonaTextInterim] = React.useState<string | null>(null);
+  const [avatarClickCount, setAvatarClickCount] = React.useState<number>(0);// const [micMuted, setMicMuted] = React.useState(false);
   const [callElapsedTime, setCallElapsedTime] = React.useState<string>('00:00');
+  const [callMessages, setCallMessages] = React.useState<DMessage[]>([]);
+  const [overridePersonaVoice, setOverridePersonaVoice] = React.useState<boolean>(false);
+  const [personaTextInterim, setPersonaTextInterim] = React.useState<string | null>(null);
+  const [pushToTalk, setPushToTalk] = React.useState(true);
+  const [stage, setStage] = React.useState<'ring' | 'declined' | 'connected' | 'ended'>('ring');
   const responseAbortController = React.useRef<AbortController | null>(null);
 
   // external state
-  const { push: routerPush } = useRouter();
   const { chatLLMId, chatLLMDropdown } = useChatLLMDropdown();
   const { chatTitle, messages } = useChatStore(state => {
     const conversation = state.conversations.find(conversation => conversation.id === props.conversationId);
@@ -82,7 +97,8 @@ export function CallUI(props: {
     };
   }, shallow);
   const persona = SystemPurposes[props.personaId as SystemPurposeId] ?? undefined;
-  const personaVoiceId = persona?.voices?.elevenLabs?.voiceId ?? undefined;
+  const personaCallStarters = persona?.call?.starters ?? undefined;
+  const personaVoiceId = overridePersonaVoice ? undefined : (persona?.voices?.elevenLabs?.voiceId ?? undefined);
   const personaSystemMessage = persona?.systemMessage ?? undefined;
 
   // hooks and speech
@@ -123,6 +139,7 @@ export function CallUI(props: {
   };
 
   // [E] pickup -> seed message and call timer
+  // FIXME: Overriding the voice will reset the call - not a desired behavior
   React.useEffect(() => {
     if (!isConnected) return;
 
@@ -137,17 +154,15 @@ export function CallUI(props: {
     }, 1000);
 
     // seed the first message
-    const phoneMessages =
-      props.personaId === 'Russ'
-        ? ['Russ Hanneman here. Talk.', 'It\'s Russ. Spill the beans.', 'Hey, it\'s Russ. Make it quick.', 'You\'re on with Russ. Impress me.', 'Russ here. What\'s the deal?']
-        : ['Hello?', 'Hey!'];
+    const phoneMessages = personaCallStarters || ['Hello?', 'Hey!'];
     const firstMessage = phoneMessages[Math.floor(Math.random() * phoneMessages.length)];
 
     setCallMessages([createDMessage('assistant', firstMessage)]);
-    EXPERIMENTAL_speakTextStream(firstMessage, personaVoiceId).then();
+    // fire/forget
+    void EXPERIMENTAL_speakTextStream(firstMessage, personaVoiceId);
 
     return () => clearInterval(interval);
-  }, [isConnected, personaVoiceId, props.personaId]);
+  }, [isConnected, personaCallStarters, personaVoiceId]);
 
   // [E] persona streaming response - upon new user message
   React.useEffect(() => {
@@ -161,7 +176,7 @@ export function CallUI(props: {
       // command: close the call
       case 'Goodbye.':
         setStage('ended');
-        setTimeout(() => routerPush('/'), 2000);
+        setTimeout(launchAppChat, 2000);
         return;
       // command: regenerate answer
       case 'Retry.':
@@ -197,7 +212,7 @@ export function CallUI(props: {
     responseAbortController.current = new AbortController();
     let finalText = '';
     let error: any | null = null;
-    streamChat(chatLLMId, callPrompt, responseAbortController.current.signal, (updatedMessage: Partial<DMessage>) => {
+    llmStreamingChatGenerate(chatLLMId, callPrompt, null, null, responseAbortController.current.signal, (updatedMessage: Partial<DMessage>) => {
       const text = updatedMessage.text?.trim();
       if (text) {
         finalText = text;
@@ -209,14 +224,15 @@ export function CallUI(props: {
     }).finally(() => {
       setPersonaTextInterim(null);
       setCallMessages(messages => [...messages, createDMessage('assistant', finalText + (error ? ` (ERROR: ${error.message || error.toString()})` : ''))]);
-      EXPERIMENTAL_speakTextStream(finalText, personaVoiceId).then();
+      // fire/forget
+      void EXPERIMENTAL_speakTextStream(finalText, personaVoiceId);
     });
 
     return () => {
       responseAbortController.current?.abort();
       responseAbortController.current = null;
     };
-  }, [isConnected, callMessages, chatLLMId, messages, personaVoiceId, personaSystemMessage, routerPush]);
+  }, [isConnected, callMessages, chatLLMId, messages, personaVoiceId, personaSystemMessage]);
 
   // [E] Message interrupter
   const abortTrigger = isConnected && isRecordingSpeech;
@@ -247,11 +263,13 @@ export function CallUI(props: {
   // pluggable UI
 
   const menuItems = React.useMemo(() =>
-      <CallMenuItems pushToTalk={pushToTalk} setPushToTalk={setPushToTalk} disableVoiceSelector={!!personaVoiceId} />
-    , [pushToTalk, personaVoiceId],
+      <CallMenuItems
+        pushToTalk={pushToTalk} setPushToTalk={setPushToTalk}
+        override={overridePersonaVoice} setOverride={setOverridePersonaVoice} />
+    , [overridePersonaVoice, pushToTalk],
   );
 
-  useLayoutPluggable(chatLLMDropdown, null, menuItems);
+  usePluggableOptimaLayout(null, chatLLMDropdown, menuItems, 'CallUI');
 
 
   return <>
@@ -276,7 +294,7 @@ export function CallUI(props: {
 
     <CallStatus
       callerName={isConnected ? undefined : personaName}
-      statusText={isRinging ? 'is calling you,' : isDeclined ? 'call declined' : isEnded ? 'call ended' : callElapsedTime}
+      statusText={isRinging ? 'is calling you' : isDeclined ? 'call declined' : isEnded ? 'call ended' : callElapsedTime}
       regardingText={chatTitle}
       micError={!isMicEnabled} speakError={!isTTSEnabled}
     />
@@ -284,6 +302,7 @@ export function CallUI(props: {
     {/* Live Transcript, w/ streaming messages, audio indication, etc. */}
     {(isConnected || isEnded) && (
       <Card variant='soft' sx={{
+        flexGrow: 1,
         minHeight: '15dvh', maxHeight: '24dvh',
         overflow: 'auto',
         width: '100%',
@@ -344,7 +363,7 @@ export function CallUI(props: {
       )}
 
       {/* [ended] Back / Call Again */}
-      {(isEnded || isDeclined) && <Link noLinkStyle href='/'><CallButton Icon={ArrowBackIcon} text='Back' variant='soft' /></Link>}
+      {(isEnded || isDeclined) && <Link noLinkStyle href={ROUTE_APP_CHAT}><CallButton Icon={ArrowBackIcon} text='Back' variant='soft' /></Link>}
       {(isEnded || isDeclined) && <CallButton Icon={CallIcon} text='Call Again' color='success' variant='soft' onClick={() => setStage('connected')} />}
 
     </Box>

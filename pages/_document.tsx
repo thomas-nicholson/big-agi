@@ -1,13 +1,11 @@
 import * as React from 'react';
-import { AppType } from 'next/app';
+import { AppType, MyAppProps } from 'next/app';
 import { default as Document, DocumentContext, DocumentProps, Head, Html, Main, NextScript } from 'next/document';
 import createEmotionServer from '@emotion/server/create-instance';
 import { getInitColorSchemeScript } from '@mui/joy/styles';
 
-import { Brand } from '~/common/brand';
-import { bodyFontClassName, createEmotionCache } from '~/common/theme';
-
-import { MyAppProps } from './_app';
+import { Brand } from '~/common/app.config';
+import { createEmotionCache } from '~/common/app.theme';
 
 
 interface MyDocumentProps extends DocumentProps {
@@ -16,7 +14,7 @@ interface MyDocumentProps extends DocumentProps {
 
 export default function MyDocument({ emotionStyleTags }: MyDocumentProps) {
   return (
-    <Html lang='en' className={bodyFontClassName}>
+    <Html lang='en'>
       <Head>
         {/* Meta (missing Title, set by the App or Page) */}
         <meta name='description' content={Brand.Meta.Description} />
@@ -53,9 +51,9 @@ export default function MyDocument({ emotionStyleTags }: MyDocumentProps) {
         {emotionStyleTags}
       </Head>
       <body>
-        {getInitColorSchemeScript()}
-        <Main />
-        <NextScript />
+      {getInitColorSchemeScript()}
+      <Main />
+      <NextScript />
       </body>
     </Html>
   );

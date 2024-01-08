@@ -1,60 +1,81 @@
 import * as React from 'react';
 import { shallow } from 'zustand/shallow';
 
-import { ListItemButton, ListItemDecorator } from '@mui/joy';
+import { Box, ListItemButton, ListItemDecorator } from '@mui/joy';
 import BuildCircleIcon from '@mui/icons-material/BuildCircle';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 import { DLLM, DLLMId, DModelSourceId, useModelsStore } from '~/modules/llms/store-llms';
 
-import { AppBarDropdown, DropdownItems } from '~/common/layout/AppBarDropdown';
-import { useUIStateStore } from '~/common/state/store-ui';
+import { GoodDropdown, DropdownItems } from '~/common/components/GoodDropdown';
+import { KeyStroke } from '~/common/components/KeyStroke';
+import { useOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
 
 
 function AppBarLLMDropdown(props: {
   llms: DLLM[],
-  llmId: DLLMId | null,
-  setLlmId: (llmId: DLLMId | null) => void,
+  chatLlmId: DLLMId | null,
+  setChatLlmId: (llmId: DLLMId | null) => void,
   placeholder?: string,
 }) {
+
+  // external state
+  const { openLlmOptions, openModelsSetup } = useOptimaLayout();
 
   // build model menu items, filtering-out hidden models, and add Source separators
   const llmItems: DropdownItems = {};
   let prevSourceId: DModelSourceId | null = null;
   for (const llm of props.llms) {
-    if (!llm.hidden || llm.id === props.llmId) {
-      if (!prevSourceId || llm.sId !== prevSourceId) {
-        if (prevSourceId)
-          llmItems[`sep-${llm.id}`] = { type: 'separator', title: llm.sId };
-        prevSourceId = llm.sId;
-      }
-      llmItems[llm.id] = { title: llm.label };
+
+    // filter-out hidden models
+    if (!(!llm.hidden || llm.id === props.chatLlmId))
+      continue;
+
+    // add separators when changing sources
+    if (!prevSourceId || llm.sId !== prevSourceId) {
+      if (prevSourceId)
+        llmItems[`sep-${llm.id}`] = {
+          type: 'separator',
+          title: llm.sId,
+        };
+      prevSourceId = llm.sId;
     }
+
+    // add the model item
+    llmItems[llm.id] = {
+      title: llm.label,
+      // icon: llm.id.startsWith('some vendor') ? <VendorIcon /> : undefined,
+    };
   }
 
-  const handleChatLLMChange = (_event: any, value: DLLMId | null) => value && props.setLlmId(value);
+  const handleChatLLMChange = (_event: any, value: DLLMId | null) => value && props.setChatLlmId(value);
 
-  const handleOpenLLMOptions = () => props.llmId && useUIStateStore.getState().openLLMOptions(props.llmId);
+  const handleOpenLLMOptions = () => props.chatLlmId && openLlmOptions(props.chatLlmId);
 
-  const handleOpenModelsSetup = () => useUIStateStore.getState().openModelsSetup();
 
   return (
-    <AppBarDropdown
+    <GoodDropdown
       items={llmItems}
-      value={props.llmId} onChange={handleChatLLMChange}
+      value={props.chatLlmId} onChange={handleChatLLMChange}
       placeholder={props.placeholder || 'Models …'}
       appendOption={<>
 
-        {props.llmId && (
+        {props.chatLlmId && (
           <ListItemButton key='menu-opt' onClick={handleOpenLLMOptions}>
             <ListItemDecorator><SettingsIcon color='success' /></ListItemDecorator>
-            Options
+            <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+              Options
+              <KeyStroke combo='Ctrl + Shift + O' />
+            </Box>
           </ListItemButton>
         )}
 
-        <ListItemButton key='menu-llms' onClick={handleOpenModelsSetup}>
+        <ListItemButton key='menu-llms' onClick={openModelsSetup}>
           <ListItemDecorator><BuildCircleIcon color='success' /></ListItemDecorator>
-          Models
+          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'space-between', gap: 1 }}>
+            Models
+            <KeyStroke combo='Ctrl + Shift + M' />
+          </Box>
         </ListItemButton>
 
       </>}
@@ -71,7 +92,7 @@ export function useChatLLMDropdown() {
   }), shallow);
 
   const chatLLMDropdown = React.useMemo(
-    () => <AppBarLLMDropdown llms={llms} llmId={chatLLMId} setLlmId={setChatLLMId} />,
+    () => <AppBarLLMDropdown llms={llms} chatLlmId={chatLLMId} setChatLlmId={setChatLLMId} />,
     [llms, chatLLMId, setChatLLMId],
   );
 

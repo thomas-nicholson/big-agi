@@ -9,17 +9,21 @@ import { SxProps } from '@mui/joy/styles/types';
  */
 export function GoodModal(props: {
   title?: string | React.JSX.Element,
-  strongerTitle?: boolean, noTitleBar?: boolean,
+  titleStartDecorator?: React.JSX.Element,
+  strongerTitle?: boolean,
+  noTitleBar?: boolean,
   dividers?: boolean,
   open: boolean,
-  onClose: () => void,
+  onClose?: () => void,
+  hideBottomClose?: boolean,
   startButton?: React.JSX.Element,
   sx?: SxProps,
   children: React.ReactNode,
 }) {
+  const showBottomClose = !!props.onClose && props.hideBottomClose !== true;
   return (
     <Modal open={props.open} onClose={props.onClose}>
-      <ModalOverflow>
+      <ModalOverflow sx={{p:1}}>
         <ModalDialog
           sx={{
             minWidth: { xs: 360, sm: 500, md: 600, lg: 700 },
@@ -29,10 +33,10 @@ export function GoodModal(props: {
           }}>
 
           {!props.noTitleBar && <Box sx={{ mb: -1, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Typography level={props.strongerTitle !== true ? 'title-md' : 'title-lg'}>
+            <Typography level={props.strongerTitle !== true ? 'title-md' : 'title-lg'} startDecorator={props.titleStartDecorator}>
               {props.title || ''}
             </Typography>
-            <ModalClose sx={{ position: 'static', mr: -1 }} />
+            {!!props.onClose && <ModalClose sx={{ position: 'static', mr: -1 }} />}
           </Box>}
 
           {props.dividers === true && <Divider />}
@@ -41,12 +45,12 @@ export function GoodModal(props: {
 
           {props.dividers === true && <Divider />}
 
-          <Box sx={{ mt: 'auto', display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'space-between' }}>
+          {(!!props.startButton || showBottomClose) && <Box sx={{ mt: 'auto', display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'space-between' }}>
             {props.startButton}
-            <Button variant='solid' color='neutral' onClick={props.onClose} sx={{ ml: 'auto', minWidth: 100 }}>
+            {showBottomClose && <Button variant='solid' color='neutral' onClick={props.onClose} sx={{ ml: 'auto', minWidth: 100 }}>
               Close
-            </Button>
-          </Box>
+            </Button>}
+          </Box>}
 
         </ModalDialog>
       </ModalOverflow>

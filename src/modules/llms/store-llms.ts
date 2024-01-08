@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 import { persist } from 'zustand/middleware';
 
-import { ModelVendorId } from './vendors/IModelVendor';
+import type { ModelVendorId } from './vendors/vendors.registry';
+import type { SourceSetupOpenRouter } from './vendors/openrouter/openrouter.vendor';
 
 
 /**
@@ -15,8 +16,13 @@ export interface DLLM<TSourceSetup = unknown, TLLMOptions = unknown> {
   updated?: number | 0;
   description: string;
   tags: string[]; // UNUSED for now
-  contextTokens: number;
-  hidden: boolean;
+  // modelcaps: DModelCapability[];
+  contextTokens: number | null;     // null: must assume it's unknown
+  maxOutputTokens: number | null;   // null: must assume it's unknown
+  hidden: boolean; // hidden from Chat model UI selectors
+
+  // temporary special flags - not graduated yet
+  isFree: boolean; // model is free to use
 
   // llm -> source
   sId: DModelSourceId;
@@ -28,8 +34,20 @@ export interface DLLM<TSourceSetup = unknown, TLLMOptions = unknown> {
 
 export type DLLMId = string;
 
+// export type DModelCapability =
+//   | 'input-text'
+//   | 'input-image-data'
+//   | 'input-multipart'
+//   | 'output-text'
+//   | 'output-function'
+//   | 'output-image-data'
+//   | 'if-chat'
+//   | 'if-fast-chat'
+//   ;
+
 // Model interfaces (chat, and function calls) - here as a preview, will be used more broadly in the future
 export const LLM_IF_OAI_Chat = 'oai-chat';
+export const LLM_IF_OAI_Vision = 'oai-vision';
 export const LLM_IF_OAI_Fn = 'oai-fn';
 export const LLM_IF_OAI_Complete = 'oai-complete';
 
@@ -62,7 +80,7 @@ interface ModelsData {
 }
 
 interface ModelsActions {
-  addLLMs: (llms: DLLM[]) => void;
+  setLLMs: (llms: DLLM[], sourceId: DModelSourceId, preserveExpired?: boolean) => void;
   removeLLM: (id: DLLMId) => void;
   updateLLM: (id: DLLMId, partial: Partial<DLLM>) => void;
   updateLLMOptions: <TLLMOptions>(id: DLLMId, partialOptions: Partial<TLLMOptions>) => void;
@@ -74,9 +92,14 @@ interface ModelsActions {
   setChatLLMId: (id: DLLMId | null) => void;
   setFastLLMId: (id: DLLMId | null) => void;
   setFuncLLMId: (id: DLLMId | null) => void;
+
+  // special
+  setOpenRoutersKey: (key: string) => void;
 }
 
-export const useModelsStore = create<ModelsData & ModelsActions>()(
+type LlmsStore = ModelsData & ModelsActions;
+
+export const useModelsStore = create<LlmsStore>()(
   persist(
     (set) => ({
 
@@ -96,10 +119,15 @@ export const useModelsStore = create<ModelsData & ModelsActions>()(
         set(state => updateSelectedIds(state.llms, state.chatLLMId, state.fastLLMId, id)),
 
       // NOTE: make sure to the _source links (sId foreign) are already set before calling this
-      // this will replace existing llms with the same id
-      addLLMs: (llms: DLLM[]) =>
+      setLLMs: (llms: DLLM[], sourceId: DModelSourceId, preserveExpired?: boolean) =>
         set(state => {
-          const newLlms = [...llms, ...state.llms.filter(llm => !llms.find(m => m.id === llm.id))];
+
+          const otherLlms = preserveExpired === true
+            ? state.llms
+            : state.llms.filter(llm => llm.sId !== sourceId);
+
+          // replace existing llms with the same id
+          const newLlms = [...llms, ...otherLlms.filter(llm => !llms.find(m => m.id === llm.id))];
           return {
             llms: newLlms,
             ...updateSelectedIds(newLlms, state.chatLLMId, state.fastLLMId, state.funcLLMId),
@@ -153,16 +181,40 @@ export const useModelsStore = create<ModelsData & ModelsActions>()(
         set(state => ({
           sources: state.sources.map((source: DModelSource): DModelSource =>
             source.id === id
-              ? {
-                ...source,
-                setup: { ...source.setup, ...partialSetup },
-              } : source,
+              ? { ...source, setup: { ...source.setup, ...partialSetup } }
+              : source,
           ),
         })),
+
+      setOpenRoutersKey: (key: string) =>
+        set(state => {
+          const openRouterSource = state.sources.find(source => source.vId === 'openrouter');
+          if (!openRouterSource) return state;
+          return {
+            sources: state.sources.map(source => source.id === openRouterSource.id
+              ? { ...source, setup: { ...source.setup, oaiKey: key satisfies SourceSetupOpenRouter['oaiKey'] } }
+              : source),
+          };
+        }),
 
     }),
     {
       name: 'app-models',
+
+      /* versioning:
+       *  1: adds maxOutputTokens (default to half of contextTokens)
+       */
+      version: 1,
+      migrate: (state: any, fromVersion: number): LlmsStore => {
+
+        // 0 -> 1: add 'maxOutputTokens' where missing
+        if (state && fromVersion < 1)
+          for (const llm of state.llms)
+            if (llm.maxOutputTokens === undefined)
+              llm.maxOutputTokens = llm.contextTokens ? Math.round(llm.contextTokens / 2) : null;
+
+        return state;
+      },
 
       // Pre-saving: omit the memory references from the persisted state
       partialize: (state) => ({
@@ -187,10 +239,6 @@ export const useModelsStore = create<ModelsData & ModelsActions>()(
 );
 
 
-const defaultChatSuffixPreference = ['gpt-4-0613', 'gpt-4', 'gpt-4-32k', 'gpt-3.5-turbo'];
-const defaultFastSuffixPreference = ['gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo'];
-const defaultFuncSuffixPreference = ['gpt-3.5-turbo-0613', 'gpt-4-0613'];
-
 export function findLLMOrThrow<TSourceSetup, TLLMOptions>(llmId: DLLMId): DLLM<TSourceSetup, TLLMOptions> {
   const llm = useModelsStore.getState().llms.find(llm => llm.id === llmId);
   if (!llm) throw new Error(`LLM ${llmId} not found`);
@@ -198,15 +246,16 @@ export function findLLMOrThrow<TSourceSetup, TLLMOptions>(llmId: DLLMId): DLLM<T
   return llm as DLLM<TSourceSetup, TLLMOptions>;
 }
 
-function findLlmIdBySuffix(llms: DLLM[], suffixes: string[], fallbackToFirst: boolean): DLLMId | null {
-  if (!llms?.length) return null;
-  for (const suffix of suffixes)
-    for (const llm of llms)
-      if (llm.id.endsWith(suffix))
-        return llm.id;
-  // otherwise return first id
-  return fallbackToFirst ? llms[0].id : null;
+export function findSourceOrThrow<TSourceSetup>(sourceId: DModelSourceId) {
+  const source: DModelSource<TSourceSetup> | undefined = useModelsStore.getState().sources.find(source => source.id === sourceId);
+  if (!source) throw new Error(`ModelSource ${sourceId} not found`);
+  return source;
 }
+
+
+const defaultChatSuffixPreference = ['gpt-4-1106-preview', 'gpt-4-0613', 'gpt-4', 'gpt-4-32k', 'gpt-3.5-turbo'];
+const defaultFastSuffixPreference = ['gpt-3.5-turbo-1106', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo'];
+const defaultFuncSuffixPreference = ['gpt-4-1106-preview', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-4-0613'];
 
 function updateSelectedIds(allLlms: DLLM[], chatLlmId: DLLMId | null, fastLlmId: DLLMId | null, funcLlmId: DLLMId | null): Partial<ModelsData> {
   if (chatLlmId && !allLlms.find(llm => llm.id === chatLlmId)) chatLlmId = null;
@@ -221,6 +270,17 @@ function updateSelectedIds(allLlms: DLLM[], chatLlmId: DLLMId | null, fastLlmId:
   return { chatLLMId: chatLlmId, fastLLMId: fastLlmId, funcLLMId: funcLlmId };
 }
 
+function findLlmIdBySuffix(llms: DLLM[], suffixes: string[], fallbackToFirst: boolean): DLLMId | null {
+  if (!llms?.length) return null;
+  for (const suffix of suffixes)
+    for (const llm of llms)
+      if (llm.id.endsWith(suffix))
+        return llm.id;
+  // otherwise return first id
+  return fallbackToFirst ? llms[0].id : null;
+}
+
+
 /**
  * Current 'Chat' LLM, or null
  */
@@ -228,28 +288,6 @@ export function useChatLLM() {
   return useModelsStore(state => {
     const { chatLLMId } = state;
     const chatLLM = chatLLMId ? state.llms.find(llm => llm.id === chatLLMId) ?? null : null;
-    return { chatLLMId, chatLLM };
+    return { chatLLM };
   }, shallow);
-}
-
-/**
- * Source-specific read/write - great time saver
- */
-export function useSourceSetup<TSourceSetup, TAccess>(sourceId: DModelSourceId, getAccess: (partialSetup?: Partial<TSourceSetup>) => TAccess) {
-  // invalidate when the setup changes
-  const { updateSourceSetup, ...rest } = useModelsStore(state => {
-    const source: DModelSource<TSourceSetup> | null = state.sources.find(source => source.id === sourceId) ?? null;
-    const sourceLLMs = source ? state.llms.filter(llm => llm._source === source) : [];
-    return {
-      source,
-      sourceLLMs,
-      sourceHasLLMs: !!sourceLLMs.length,
-      access: getAccess(source?.setup),
-      updateSourceSetup: state.updateSourceSetup,
-    };
-  }, shallow);
-
-  // convenience function for this source
-  const updateSetup = (partialSetup: Partial<TSourceSetup>) => updateSourceSetup<TSourceSetup>(sourceId, partialSetup);
-  return { ...rest, updateSetup };
 }

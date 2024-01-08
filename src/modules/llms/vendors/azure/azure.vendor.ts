@@ -1,10 +1,11 @@
+import { backendCaps } from '~/modules/backend/state-backend';
+
 import { AzureIcon } from '~/common/components/icons/AzureIcon';
 
 import type { IModelVendor } from '../IModelVendor';
-import type { OpenAIAccessSchema } from '../../transports/server/openai.router';
-import type { VChatFunctionIn, VChatMessageIn, VChatMessageOrFunctionCallOut, VChatMessageOut } from '../../transports/chatGenerate';
+import type { OpenAIAccessSchema } from '../../server/openai/openai.router';
 
-import { LLMOptionsOpenAI, openAICallChatGenerate } from '../openai/openai.vendor';
+import { LLMOptionsOpenAI, ModelVendorOpenAI } from '../openai/openai.vendor';
 import { OpenAILLMOptions } from '../openai/OpenAILLMOptions';
 
 import { AzureSourceSetup } from './AzureSourceSetup';
@@ -34,13 +35,13 @@ export interface SourceSetupAzure {
  *
  * Work in progress...
  */
-export const ModelVendorAzure: IModelVendor<SourceSetupAzure, LLMOptionsOpenAI, OpenAIAccessSchema> = {
+export const ModelVendorAzure: IModelVendor<SourceSetupAzure, OpenAIAccessSchema, LLMOptionsOpenAI> = {
   id: 'azure',
   name: 'Azure',
   rank: 14,
   location: 'cloud',
   instanceLimit: 2,
-  hasServerKey: !!process.env.HAS_SERVER_KEY_AZURE_OPENAI,
+  hasBackendCap: () => backendCaps().hasLlmAzureOpenAI,
 
   // components
   Icon: AzureIcon,
@@ -48,7 +49,7 @@ export const ModelVendorAzure: IModelVendor<SourceSetupAzure, LLMOptionsOpenAI, 
   LLMOptionsComponent: OpenAILLMOptions,
 
   // functions
-  getAccess: (partialSetup): OpenAIAccessSchema => ({
+  getTransportAccess: (partialSetup): OpenAIAccessSchema => ({
     dialect: 'azure',
     oaiKey: partialSetup?.azureKey || '',
     oaiOrg: '',
@@ -56,10 +57,9 @@ export const ModelVendorAzure: IModelVendor<SourceSetupAzure, LLMOptionsOpenAI, 
     heliKey: '',
     moderationCheck: false,
   }),
-  callChatGenerate(llm, messages: VChatMessageIn[], maxTokens?: number): Promise<VChatMessageOut> {
-    return openAICallChatGenerate(this.getAccess(llm._source.setup), llm.options, messages, null, null, maxTokens);
-  },
-  callChatGenerateWF(llm, messages: VChatMessageIn[], functions: VChatFunctionIn[] | null, forceFunctionName: string | null, maxTokens?: number): Promise<VChatMessageOrFunctionCallOut> {
-    return openAICallChatGenerate(this.getAccess(llm._source.setup), llm.options, messages, functions, forceFunctionName, maxTokens);
-  },
+
+  // OpenAI transport ('azure' dialect in 'access')
+  rpcUpdateModelsQuery: ModelVendorOpenAI.rpcUpdateModelsQuery,
+  rpcChatGenerateOrThrow: ModelVendorOpenAI.rpcChatGenerateOrThrow,
+  streamingChatGenerateOrThrow: ModelVendorOpenAI.streamingChatGenerateOrThrow,
 };

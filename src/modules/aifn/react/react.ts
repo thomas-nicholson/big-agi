@@ -4,11 +4,12 @@
 
 import { DLLMId } from '~/modules/llms/store-llms';
 import { callApiSearchGoogle } from '~/modules/google/search.client';
-import { callChatGenerate, VChatMessageIn } from '~/modules/llms/transports/chatGenerate';
+import { callBrowseFetchPage } from '~/modules/browse/browse.client';
+import { llmChatGenerateOrThrow, VChatMessageIn } from '~/modules/llms/llm.client';
 
 
 // prompt to implement the ReAct paradigm: https://arxiv.org/abs/2210.03629
-const reActPrompt: string =
+const reActPrompt = (enableBrowse: boolean): string =>
   `You are a Question Answering AI with reasoning ability.
 You will receive a Question from the User.
 In order to answer any Question, you run in a loop of Thought, Action, PAUSE, Observation.
@@ -28,7 +29,11 @@ e.g. google: Django
 Returns google custom search results
 ALWAYS look up on google when the question is related to live events or factual information, such as sports, news, or weather.
 
-calculate:
+` + (enableBrowse ? `loadUrl:
+e.g. loadUrl: https://arxiv.org/abs/1706.03762
+Opens the given URL and displays it
+
+` : '') + `calculate:
 e.g. calculate: 4 * 7 / 3
 Runs a calculation and returns the number - uses Python so be sure to use floating point syntax if necessary
 
@@ -53,9 +58,6 @@ Answer: The capital of France is Paris
 `;
 
 
-export const CmdRunReact: string[] = ['/react'];
-
-
 const actionRe = /^Action: (\w+): (.*)$/;
 
 
@@ -76,16 +78,18 @@ interface State {
 export class Agent {
 
   // NOTE: this is here for demo, but the whole loop could be moved to the caller's event loop
-  async reAct(question: string, llmId: DLLMId, maxTurns = 5, log: (...data: any[]) => void = console.log, show: (state: object) => void): Promise<string> {
+  async reAct(question: string, llmId: DLLMId, maxTurns = 5, enableBrowse = false,
+              appendLog: (...data: any[]) => void = console.log,
+              showState: (state: object) => void): Promise<string> {
     let i = 0;
     // TODO: to initialize with previous chat messages to provide context.
-    const S: State = this.initialize(`Question: ${question}`);
-    show(S);
+    const S: State = this.initialize(`Question: ${question}`, enableBrowse, appendLog);
+    showState(S);
     while (i < maxTurns && S.result === undefined) {
       i++;
-      log(`\n## Turn ${i}`);
-      await this.step(S, llmId, log);
-      show(S);
+      appendLog(`\n## Turn ${i}`);
+      await this.step(S, llmId, appendLog);
+      showState(S);
     }
     // return only the 'Answer: ' part of the result
     if (S.result) {
@@ -96,13 +100,17 @@ export class Agent {
     return S.result || 'No result';
   }
 
-  initialize(question: string): State {
-    return {
-      messages: [{ role: 'system', content: reActPrompt.replaceAll('{{currentDate}}', new Date().toISOString().slice(0, 10)) }],
+  initialize(question: string, enableBrowse: boolean, log: (...data: any[]) => void = console.log): State {
+    const state: State = {
+      messages: [{ role: 'system', content: reActPrompt(enableBrowse).replaceAll('{{currentDate}}', new Date().toISOString().slice(0, 10)) }],
       nextPrompt: question,
       lastObservation: '',
       result: undefined,
     };
+    log('## Prepare Buffer');
+    for (let i = 0; i < state.messages.length; i++)
+      log('→ ' + state.messages[i].role + ' [' + (i + 1) + ']: "' + state.messages[i].content.slice(0, 86).replaceAll('\n', ' ') + ' ..."');
+    return state;
   }
 
   truncateStringAfterPause(input: string): string {
@@ -121,9 +129,9 @@ export class Agent {
     S.messages.push({ role: 'user', content: prompt });
     let content: string;
     try {
-      content = (await callChatGenerate(llmId, S.messages, 500)).content;
+      content = (await llmChatGenerateOrThrow(llmId, S.messages, null, null, 500)).content;
     } catch (error: any) {
-      content = `Error in callChat: ${error}`;
+      content = `Error in llmChatGenerateOrThrow: ${error}`;
     }
     // process response, strip out potential hallucinated response after PAUSE is detected
     content = this.truncateStringAfterPause(content);
@@ -132,9 +140,9 @@ export class Agent {
   }
 
   async step(S: State, llmId: DLLMId, log: (...data: any[]) => void = console.log) {
-    log('→ reAct [...' + (S.messages.length + 1) + ']: ' + S.nextPrompt);
+    log('→ ' + (S.lastObservation ? 'action' : 'user') + ' [' + (S.messages.length + 1) + ']: "' + S.nextPrompt + '"');
     const result = await this.chat(S, S.nextPrompt, llmId);
-    log(`← ${result}`);
+    log('← reAct [' + (S.messages.length) + ']: "' + result + '"');
     const actions = result
       .split('\n')
       .map((a: string) => actionRe.exec(a))
@@ -145,12 +153,14 @@ export class Agent {
       if (!(action in knownActions)) {
         throw new Error(`Unknown action: ${action}: ${actionInput}`);
       }
-      log(`⚡ ${action} "${actionInput}"`);
+      log(`⚡ __${action}__("${actionInput}") → Observation`);
       S.lastObservation = await knownActions[action](actionInput);
       S.nextPrompt = `Observation: ${S.lastObservation}`;
-      log(S.nextPrompt);
+      // will be displayed in the next step
+      // log('=>' + S.nextPrompt);
     } else {
       log('↙ done');
+      // already displayed (← react)
       // log(`Result: ${result}`);
       S.result = result;
     }
@@ -178,10 +188,21 @@ async function search(query: string): Promise<string> {
   }
 }
 
+async function browse(url: string): Promise<string> {
+  try {
+    const page = await callBrowseFetchPage(url);
+    return JSON.stringify(page.content ? { text: page.content } : { error: 'Issue reading the page' });
+  } catch (error) {
+    console.error('Error browsing:', (error as Error).message);
+    return 'An error occurred while browsing to the URL. Missing WSS Key?';
+  }
+}
+
 const calculate = async (what: string): Promise<string> => String(eval(what));
 
 const knownActions: { [key: string]: ActionFunction } = {
   wikipedia: wikipedia,
   google: search,
+  loadUrl: browse,
   calculate: calculate,
 };

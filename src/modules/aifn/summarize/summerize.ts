@@ -1,5 +1,5 @@
 import { DLLMId, findLLMOrThrow } from '~/modules/llms/store-llms';
-import { callChatGenerate } from '~/modules/llms/transports/chatGenerate';
+import { llmChatGenerateOrThrow } from '~/modules/llms/llm.client';
 
 
 // prompt to be tried when doing recursive summerization.
@@ -71,19 +71,19 @@ export async function summerizeToFitContextBudget(text: string, targetWordCount:
   return summarizedChunks.join('\n');
 }
 
-async function cleanUpContent(chunk: string, llmId: DLLMId, ignored_was_targetWordCount: number): Promise<string> {
+async function cleanUpContent(chunk: string, llmId: DLLMId, _ignored_was_targetWordCount: number): Promise<string> {
 
   // auto-adjust the tokens assuming the output would be half the size of the input (a bit dangerous,
   // but at this stage we are not guaranteed the input nor output would fit)
   const outputTokenShare = 1 / 3;
   const { contextTokens } = findLLMOrThrow(llmId);
-  const autoResponseTokensSize = Math.floor(contextTokens * outputTokenShare);
+  const autoResponseTokensSize = contextTokens ? Math.floor(contextTokens * outputTokenShare) : null;
 
   try {
-    const chatResponse = await callChatGenerate(llmId, [
+    const chatResponse = await llmChatGenerateOrThrow(llmId, [
       { role: 'system', content: cleanupPrompt },
       { role: 'user', content: chunk },
-    ], autoResponseTokensSize);
+    ], null, null, autoResponseTokensSize ?? undefined);
     return chatResponse?.content ?? '';
   } catch (error: any) {
     return '';

@@ -1,18 +1,15 @@
 import * as React from 'react';
 
-import { Box } from '@mui/joy';
-
 import { FormInputKey } from '~/common/components/forms/FormInputKey';
 import { FormTextField } from '~/common/components/forms/FormTextField';
 import { InlineError } from '~/common/components/InlineError';
 import { Link } from '~/common/components/Link';
 import { SetupFormRefetchButton } from '~/common/components/forms/SetupFormRefetchButton';
-import { apiQuery } from '~/common/util/trpc.client';
 import { asValidURL } from '~/common/util/urlUtils';
-import { settingsGap } from '~/common/theme';
 
-import { DModelSourceId, useModelsStore, useSourceSetup } from '../../store-llms';
-import { modelDescriptionToDLLM } from '../openai/OpenAISourceSetup';
+import { DModelSourceId } from '../../store-llms';
+import { useLlmUpdateModels } from '../useLlmUpdateModels';
+import { useSourceSetup } from '../useSourceSetup';
 
 import { isValidAzureApiKey, ModelVendorAzure } from './azure.vendor';
 
@@ -21,12 +18,12 @@ export function AzureSourceSetup(props: { sourceId: DModelSourceId }) {
 
   // external state
   const { source, sourceHasLLMs, access, updateSetup } =
-    useSourceSetup(props.sourceId, ModelVendorAzure.getAccess);
+    useSourceSetup(props.sourceId, ModelVendorAzure);
 
   // derived state
   const { oaiKey: azureKey, oaiHost: azureEndpoint } = access;
 
-  const needsUserKey = !ModelVendorAzure.hasServerKey;
+  const needsUserKey = !ModelVendorAzure.hasBackendCap?.();
   const keyValid = isValidAzureApiKey(azureKey);
   const keyError = (/*needsUserKey ||*/ !!azureKey) && !keyValid;
   const hostValid = !!asValidURL(azureEndpoint);
@@ -34,15 +31,10 @@ export function AzureSourceSetup(props: { sourceId: DModelSourceId }) {
   const shallFetchSucceed = azureKey ? keyValid : !needsUserKey;
 
   // fetch models
-  const { isFetching, refetch, isError, error } = apiQuery.llmOpenAI.listModelsAzure.useQuery({
-    access,
-  }, {
-    enabled: !sourceHasLLMs && shallFetchSucceed,
-    onSuccess: models => source && useModelsStore.getState().addLLMs(models.models.map(model => modelDescriptionToDLLM(model, source))),
-    staleTime: Infinity,
-  });
+  const { isFetching, refetch, isError, error } =
+    useLlmUpdateModels(ModelVendorAzure, access, !sourceHasLLMs && shallFetchSucceed, source);
 
-  return <Box sx={{ display: 'flex', flexDirection: 'column', gap: settingsGap }}>
+  return <>
 
     <FormTextField
       title='Azure Endpoint'
@@ -64,9 +56,9 @@ export function AzureSourceSetup(props: { sourceId: DModelSourceId }) {
       placeholder='...'
     />
 
-    <SetupFormRefetchButton refetch={refetch} disabled={!shallFetchSucceed || isFetching} error={isError} />
+    <SetupFormRefetchButton refetch={refetch} disabled={!shallFetchSucceed || isFetching} loading={isFetching} error={isError} />
 
     {isError && <InlineError error={error} />}
 
-  </Box>;
+  </>;
 }

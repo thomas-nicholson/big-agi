@@ -16,12 +16,13 @@ export interface CapabilityBrowserSpeechRecognition {
   mayWork: boolean; // Is the SpeechRecognition API available in the user's browser and device
   isApiAvailable: boolean; // Is the SpeechRecognition API available in the user's browser
   isDeviceNotSupported: boolean; // Is the user's device not supported (e.g., iPhone)
+  warnings: string[];
 }
 
 export { browserSpeechRecognitionCapability as useCapabilityBrowserSpeechRecognition } from './useSpeechRecognition';
 
 
-/// Speech Synthesis (ElevenLabs)
+/// Speech Synthesis: ElevenLabs
 
 export interface CapabilityElevenLabsSpeechSynthesis {
   mayWork: boolean;
@@ -30,3 +31,40 @@ export interface CapabilityElevenLabsSpeechSynthesis {
 }
 
 export { useCapability as useCapabilityElevenLabs } from '~/modules/elevenlabs/elevenlabs.client';
+
+
+/// Image Generation
+
+export interface TextToImageProvider {
+  id: string;
+  label: string;
+  painter: string;
+  description: string;
+  configured: boolean;
+  vendor: 'openai' | 'prodia';
+}
+
+export interface CapabilityTextToImage {
+  mayWork: boolean;
+  providers: TextToImageProvider[],
+  activeProviderId: string | null;
+  setActiveProviderId: (providerId: string | null) => void;
+}
+
+export { useCapabilityTextToImage } from '~/modules/t2i/t2i.client';
+
+
+/// Browsing
+
+export interface CapabilityBrowsing {
+  mayWork: boolean;
+  isServerConfig: boolean;
+  isClientConfig: boolean;
+  isClientValid: boolean;
+  inCommand: boolean;
+  inComposer: boolean;
+  inReact: boolean;
+  inPersonas: boolean;
+}
+
+// export { useBrowseCapability as useCapabilityBrowse } from '~/modules/browse/store-module-browsing';

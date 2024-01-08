@@ -1,20 +1,19 @@
 import * as React from 'react';
 
-import { Alert, Box } from '@mui/joy';
+import { Alert } from '@mui/joy';
 
 import { FormInputKey } from '~/common/components/forms/FormInputKey';
 import { FormTextField } from '~/common/components/forms/FormTextField';
 import { InlineError } from '~/common/components/InlineError';
 import { Link } from '~/common/components/Link';
 import { SetupFormRefetchButton } from '~/common/components/forms/SetupFormRefetchButton';
-import { apiQuery } from '~/common/util/trpc.client';
-import { settingsGap } from '~/common/theme';
 import { useToggleableBoolean } from '~/common/util/useToggleableBoolean';
 
-import { DModelSourceId, useModelsStore, useSourceSetup } from '../../store-llms';
+import { DModelSourceId } from '../../store-llms';
+import { useLlmUpdateModels } from '../useLlmUpdateModels';
+import { useSourceSetup } from '../useSourceSetup';
 
 import { isValidAnthropicApiKey, ModelVendorAnthropic } from './anthropic.vendor';
-import { modelDescriptionToDLLM } from '../openai/OpenAISourceSetup';
 
 
 export function AnthropicSourceSetup(props: { sourceId: DModelSourceId }) {
@@ -24,26 +23,21 @@ export function AnthropicSourceSetup(props: { sourceId: DModelSourceId }) {
 
   // external state
   const { source, sourceHasLLMs, access, updateSetup } =
-    useSourceSetup(props.sourceId, ModelVendorAnthropic.getAccess);
+    useSourceSetup(props.sourceId, ModelVendorAnthropic);
 
   // derived state
   const { anthropicKey, anthropicHost, heliconeKey } = access;
 
-  const needsUserKey = !ModelVendorAnthropic.hasServerKey;
+  const needsUserKey = !ModelVendorAnthropic.hasBackendCap?.();
   const keyValid = isValidAnthropicApiKey(anthropicKey);
   const keyError = (/*needsUserKey ||*/ !!anthropicKey) && !keyValid;
-  const shallFetchSucceed = anthropicKey ? keyValid : !needsUserKey;
+  const shallFetchSucceed = anthropicKey ? keyValid : (!needsUserKey || !!anthropicHost);
 
   // fetch models
-  const { isFetching, refetch, isError, error } = apiQuery.llmAnthropic.listModels.useQuery({
-    access,
-  }, {
-    enabled: !sourceHasLLMs && shallFetchSucceed,
-    onSuccess: models => source && useModelsStore.getState().addLLMs(models.models.map(model => modelDescriptionToDLLM(model, source))),
-    staleTime: Infinity,
-  });
+  const { isFetching, refetch, isError, error } =
+    useLlmUpdateModels(ModelVendorAnthropic, access, !sourceHasLLMs && shallFetchSucceed, source);
 
-  return <Box sx={{ display: 'flex', flexDirection: 'column', gap: settingsGap }}>
+  return <>
 
     <FormInputKey
       id='anthropic-key' label={!!anthropicHost ? 'API Key' : 'Anthropic API Key'}
@@ -78,9 +72,9 @@ export function AnthropicSourceSetup(props: { sourceId: DModelSourceId }) {
       Advanced: You set the Helicone key, and Anthropic text will be routed through Helicone.
     </Alert>}
 
-    <SetupFormRefetchButton refetch={refetch} disabled={!shallFetchSucceed || isFetching} error={isError} advanced={advanced} />
+    <SetupFormRefetchButton refetch={refetch} disabled={!shallFetchSucceed || isFetching} loading={isFetching} error={isError} advanced={advanced} />
 
     {isError && <InlineError error={error} />}
 
-  </Box>;
+  </>;
 }
