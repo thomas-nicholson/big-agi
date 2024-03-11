@@ -18,6 +18,7 @@ const PLAIN_TEXT_MIMETYPES: string[] = [
   'text/markdown',
   'text/csv',
   'text/css',
+  'text/javascript',
   'application/json',
 ];
 
@@ -255,7 +256,7 @@ export async function attachmentPerformConversion(attachment: Readonly<Attachmen
       outputs.push({
         type: 'text-block',
         text: input.altData!,
-        title: ref,
+        title: ref || '\n<!DOCTYPE html>',
         collapsible: true,
       });
       break;

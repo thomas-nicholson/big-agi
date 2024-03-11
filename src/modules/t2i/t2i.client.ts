@@ -22,7 +22,10 @@ export function useCapabilityTextToImage(): CapabilityTextToImage {
     setActiveProviderId: state.setActiveProviderId,
   }), shallow);
   const hasProdiaModels = useProdiaStore(state => !!state.prodiaModelId);
-  const openAIModelSourceIds: OpenAIModelSource[] = useModelsStore(state => getOpenAIModelSources(state.llms, state.sources), shallow);
+  const openAIModelSourceIds: OpenAIModelSource[] = useModelsStore(
+    ({ llms, sources }) => getOpenAIModelSources(llms, sources),
+    (a, b) => a.length === b.length && a.every((_a, i) => shallow(_a, b[i])),
+  );
 
 
   // derived state
@@ -68,7 +71,7 @@ export function getActiveTextToImageProviderOrThrow() {
   // find the active provider
   const activeProvider = providers.find(p => p.id === activeProviderId);
   if (!activeProvider)
-    throw new Error('No TextToImage Provider found');
+    throw new Error('Text-to-image is not configured correctly');
 
   return activeProvider;
 }

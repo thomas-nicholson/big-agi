@@ -7,49 +7,8 @@ import InfoIcon from '@mui/icons-material/Info';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 
 import { InlineError } from '~/common/components/InlineError';
+import { downloadVideoFrameAsPNG, renderVideoFrameAsPNGFile } from '~/common/util/videoUtils';
 import { useCameraCapture } from '~/common/components/useCameraCapture';
-
-
-function prettyFileName(renderedFrame: HTMLCanvasElement) {
-  const prettyDate = new Date().toISOString().replace(/[:-]/g, '').replace('T', '-').replace('Z', '');
-  const prettyResolution = `${renderedFrame.width}x${renderedFrame.height}`;
-  return `camera-${prettyDate}-${prettyResolution}.png`;
-}
-
-function renderVideoFrameToCanvas(videoElement: HTMLVideoElement): HTMLCanvasElement {
-  // paint the video on a canvas, to save it
-  const canvas = document.createElement('canvas');
-  canvas.width = videoElement.videoWidth || 640;
-  canvas.height = videoElement.videoHeight || 480;
-  const ctx = canvas.getContext('2d');
-  ctx?.drawImage(videoElement, 0, 0);
-  return canvas;
-}
-
-function renderVideoFrameToFile(videoElement: HTMLVideoElement, callback: (file: File) => void) {
-  // video to canvas
-  const renderedFrame = renderVideoFrameToCanvas(videoElement);
-
-  // canvas to blob to file to callback
-  renderedFrame.toBlob((blob) => {
-    if (blob) {
-      const file = new File([blob], prettyFileName(renderedFrame), { type: blob.type });
-      callback(file);
-    }
-  }, 'image/png');
-}
-
-function downloadVideoFrameAsPNG(videoElement: HTMLVideoElement) {
-  // video to canvas to png
-  const renderedFrame = renderVideoFrameToCanvas(videoElement);
-  const imageDataURL = renderedFrame.toDataURL('image/png');
-
-  // auto-download
-  const link = document.createElement('a');
-  link.download = prettyFileName(renderedFrame);
-  link.href = imageDataURL;
-  link.click();
-}
 
 
 export function CameraCaptureModal(props: {
@@ -57,11 +16,12 @@ export function CameraCaptureModal(props: {
   onAttachImage: (file: File) => void
   // onOCR: (ocrText: string) => void }
 }) {
-  // state
-  // const [ocrProgress/*, setOCRProgress*/] = React.useState<number | null>(null);
-  const [showInfo, setShowInfo] = React.useState(false);
 
-  // camera operations
+  // state
+  const [showInfo, setShowInfo] = React.useState(false);
+  // const [ocrProgress/*, setOCRProgress*/] = React.useState<number | null>(null);
+
+  // external state
   const {
     videoRef,
     cameras, cameraIdx, setCameraIdx,
@@ -70,10 +30,14 @@ export function CameraCaptureModal(props: {
   } = useCameraCapture();
 
 
-  const stopAndClose = () => {
+  // derived state
+  const { onCloseModal, onAttachImage } = props;
+
+
+  const stopAndClose = React.useCallback(() => {
     resetVideo();
-    props.onCloseModal();
-  };
+    onCloseModal();
+  }, [onCloseModal, resetVideo]);
 
   /*const handleVideoOCRClicked = async () => {
     if (!videoRef.current) return;
@@ -94,18 +58,21 @@ export function CameraCaptureModal(props: {
     props.onOCR(result.data.text);
   };*/
 
-  const handleVideoSnapClicked = () => {
+  const handleVideoSnapClicked = React.useCallback(async () => {
     if (!videoRef.current) return;
-    renderVideoFrameToFile(videoRef.current, (file) => {
-      props.onAttachImage(file);
+    try {
+      const file = await renderVideoFrameAsPNGFile(videoRef.current, 'camera');
+      onAttachImage(file);
       stopAndClose();
-    });
-  };
+    } catch (error) {
+      console.error('Error capturing video frame:', error);
+    }
+  }, [onAttachImage, stopAndClose, videoRef]);
 
-  const handleVideoDownloadClicked = () => {
+  const handleVideoDownloadClicked = React.useCallback(() => {
     if (!videoRef.current) return;
-    downloadVideoFrameAsPNG(videoRef.current);
-  };
+    downloadVideoFrameAsPNG(videoRef.current, 'camera');
+  }, [videoRef]);
 
 
   return (
@@ -118,7 +85,7 @@ export function CameraCaptureModal(props: {
       }}>
 
         {/* Top bar */}
-        <Sheet variant='solid' invertedColors sx={{ zIndex: 10, display: 'flex', justifyContent: 'space-between', p: 1 }}>
+        <Sheet variant='solid' invertedColors sx={{ display: 'flex', justifyContent: 'space-between', p: 1 }}>
           <Select
             variant='solid' color='neutral'
             value={cameraIdx} onChange={(_event: any, value: number | null) => setCameraIdx(value === null ? -1 : value)}
@@ -149,7 +116,7 @@ export function CameraCaptureModal(props: {
 
           {showInfo && !!info && <Typography
             sx={{
-              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1,
+              position: 'absolute', inset: 0, zIndex: 1, /* camera info on top of video */
               background: 'rgba(0,0,0,0.5)', color: 'white',
               whiteSpace: 'pre', overflowY: 'scroll',
             }}>
@@ -160,7 +127,7 @@ export function CameraCaptureModal(props: {
         </Box>
 
         {/* Bottom controls (zoom, ocr, download) & progress */}
-        <Sheet variant='soft' sx={{ display: 'flex', flexDirection: 'column', zIndex: 20, gap: 1, p: 1 }}>
+        <Sheet variant='soft' sx={{ display: 'flex', flexDirection: 'column', gap: 1, p: 1 }}>
 
           {!!error && <InlineError error={error} />}
 
@@ -170,7 +137,7 @@ export function CameraCaptureModal(props: {
 
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'space-between' }}>
             {/* Info */}
-            <IconButton size='lg' disabled={!info} variant='soft' onClick={() => setShowInfo(info => !info)} sx={{ zIndex: 30 }}>
+            <IconButton size='lg' disabled={!info} variant='soft' onClick={() => setShowInfo(info => !info)}>
               <InfoIcon />
             </IconButton>
             {/*<Button disabled={ocrProgress !== null} fullWidth variant='solid' size='lg' onClick={handleVideoOCRClicked} sx={{ flex: 1, maxWidth: 260 }}>*/}

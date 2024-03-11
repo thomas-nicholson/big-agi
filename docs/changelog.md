@@ -5,10 +5,59 @@ by release.
 
 - For the live roadmap, please see [the GitHub project](https://github.com/users/enricoros/projects/4/views/2)
 
-### 1.11.0 - Jan 2024
+### 1.15.0 - Mar 2024
 
-- milestone: [1.11.0](https://github.com/enricoros/big-agi/milestone/11)
+Prediction: OpenAI will release GPT-5 on March 14, 2024. We will support it on day 1.
+
+- milestone: [1.15.0](https://github.com/enricoros/big-agi/milestone/15)
 - work in progress: [big-AGI open roadmap](https://github.com/users/enricoros/projects/4/views/2), [help here](https://github.com/users/enricoros/projects/4/views/4)
+
+### What's New in 1.14.1 · March 7, 2024 · Modelmorphic
+
+- **Anthropic** [Claude-3](https://www.anthropic.com/news/claude-3-family) model family support. [#443](https://github.com/enricoros/big-AGI/issues/443)
+- New **[Perplexity](https://www.perplexity.ai/)** and **[Groq](https://groq.com/)** integration (thanks @Penagwin). [#407](https://github.com/enricoros/big-AGI/issues/407), [#427](https://github.com/enricoros/big-AGI/issues/427)
+- **[LocalAI](https://localai.io/models/)** deep integration, including support for [model galleries](https://github.com/enricoros/big-AGI/issues/411)
+- **Mistral** Large and Google **Gemini 1.5** support
+- Performance optimizations: runs [much faster](https://twitter.com/enricoros/status/1756553038293303434?utm_source=localhost:3000&utm_medium=big-agi), saves lots of power, reduces memory usage
+- Enhanced UX with auto-sizing charts, refined search and folder functionalities, perfected scaling
+- And with more UI improvements, documentation, bug fixes (20 tickets), and developer enhancements
+- [Release notes](https://github.com/enricoros/big-AGI/releases/tag/v1.14.0), and changes [v1.13.1...v1.14.0](https://github.com/enricoros/big-AGI/compare/v1.13.1...v1.14.0) (233 commits, 8,000+ lines changed)
+
+### What's New in 1.13.0 · Feb 8, 2024 · Multi + Mind
+
+https://github.com/enricoros/big-AGI/assets/32999/01732528-730e-41dc-adc7-511385686b13
+
+- **Side-by-Side Split Windows**: multitask with parallel conversations. [#208](https://github.com/enricoros/big-AGI/issues/208)
+- **Multi-Chat Mode**: message everyone, all at once. [#388](https://github.com/enricoros/big-AGI/issues/388)
+- **Export tables as CSV**: big thanks to @aj47. [#392](https://github.com/enricoros/big-AGI/pull/392)
+- Adjustable text size: customize density. [#399](https://github.com/enricoros/big-AGI/issues/399)
+- Dev2 Persona Technology Preview
+- Better looking chats with improved spacing, fonts, and menus
+- More: new video player, [LM Studio tutorial](https://github.com/enricoros/big-AGI/blob/main/docs/config-local-lmstudio.md) (thanks @aj47), [MongoDB support](https://github.com/enricoros/big-AGI/blob/main/docs/deploy-database.md) (thanks @ranfysvalle02), and speedups
+
+### What's New in 1.12.0 · Jan 26, 2024 · AGI Hotline
+
+https://github.com/enricoros/big-AGI/assets/32999/95ceb03c-945d-4fdd-9a9f-3317beb54f3f
+
+- **Voice Calls**: real-time voice call your personas out of the blue or in relation to a chat [#354](https://github.com/enricoros/big-AGI/issues/354)
+- Support **OpenAI 0125** Models. [#364](https://github.com/enricoros/big-AGI/issues/364)
+- Rename or Auto-Rename chats.  [#222](https://github.com/enricoros/big-AGI/issues/222), [#360](https://github.com/enricoros/big-AGI/issues/360)
+- More control over **Link Sharing** [#356](https://github.com/enricoros/big-AGI/issues/356)
+- **Accessibility** to screen readers [#358](https://github.com/enricoros/big-AGI/issues/358)
+- Export chats to Markdown [#337](https://github.com/enricoros/big-AGI/issues/337)
+- Paste tables from Excel [#286](https://github.com/enricoros/big-AGI/issues/286)
+- Ollama model updates and context window detection fixes [#309](https://github.com/enricoros/big-AGI/issues/309)
+
+### What's New in 1.11.0 · Jan 16, 2024 · Singularity
+
+https://github.com/enricoros/big-AGI/assets/1590910/a6b8e172-0726-4b03-a5e5-10cfcb110c68
+
+- **Find chats**: search in titles and content, with frequency ranking. [#329](https://github.com/enricoros/big-AGI/issues/329)
+- **Commands**: command auto-completion (type '/'). [#327](https://github.com/enricoros/big-AGI/issues/327)
+- **[Together AI](https://www.together.ai/products#inference)** inference platform support (good speed and newer models). [#346](https://github.com/enricoros/big-AGI/issues/346)
+- Persona Creator history, deletion, custom creation, fix llm API timeouts
+- Enable adding up to five custom OpenAI-compatible endpoints
+- Developer enhancements: new 'Actiles' framework
 
 ### What's New in 1.10.0 · Jan 6, 2024 · The Year of AGI
 
@@ -45,7 +94,7 @@ by release.
 
 - **Attachments System Overhaul**: Drag, paste, link, snap, text, images, PDFs and more. [#251](https://github.com/enricoros/big-agi/issues/251)
 - **Desktop Webcam Capture**: Image capture now available as Labs feature. [#253](https://github.com/enricoros/big-agi/issues/253)
-- **Independent Browsing**: Full browsing support with Browserless. [Learn More](https://github.com/enricoros/big-agi/blob/main/docs/config-browse.md)
+- **Independent Browsing**: Full browsing support with Browserless. [Learn More](https://github.com/enricoros/big-agi/blob/main/docs/config-feature-browse.md)
 - **Overheat LLMs**: Push the creativity with higher LLM temperatures. [#256](https://github.com/enricoros/big-agi/issues/256)
 - **Model Options Shortcut**: Quick adjust with `Ctrl+Shift+O`
 - Optimized Voice Input and Performance
@@ -54,7 +103,7 @@ by release.
 
 ### What's New in 1.6.0 - Nov 28, 2023 · Surf's Up
 
-- **Web Browsing**: Download web pages within chats - [browsing guide](https://github.com/enricoros/big-agi/blob/main/docs/config-browse.md)
+- **Web Browsing**: Download web pages within chats - [browsing guide](https://github.com/enricoros/big-agi/blob/main/docs/config-feature-browse.md)
 - **Branching Discussions**: Create new conversations from any message
 - **Keyboard Navigation**: Swift chat navigation with new shortcuts (e.g. ctrl+alt+left/right)
 - **Performance Boost**: Faster rendering for a smoother experience
@@ -128,7 +177,7 @@ For Developers:
 - **[Install Mobile APP](../docs/pixels/feature_pwa.png)** 📲 looks like native (@harlanlewis)
 - **[UI language](../docs/pixels/feature_language.png)** with auto-detect, and future app language! (@tbodyston)
 - **PDF Summarization** 🧩🤯 - ask questions to a PDF! (@fredliubojin)
-- **Code Execution: [Codepen](https://codepen.io/)/[Replit](https://replit.com/)** 💻 (@harlanlewis)
+- **Code Execution: [Codepen](https://codepen.io/)** 💻 (@harlanlewis)
 - **[SVG Drawing](../docs/pixels/feature_svg_drawing.png)** - draw with AI 🎨
 - Chats: multiple chats, AI titles, Import/Export, Selection mode
 - Rendering: Markdown, SVG, improved Code blocks

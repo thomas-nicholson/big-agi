@@ -2,10 +2,13 @@
  * porting of implementation from here: https://til.simonwillison.net/llms/python-react-pattern
  */
 
-import { DLLMId } from '~/modules/llms/store-llms';
+import type { DLLMId } from '~/modules/llms/store-llms';
+import { bareBonesPromptMixer } from '~/modules/persona/pmix/pmix';
 import { callApiSearchGoogle } from '~/modules/google/search.client';
 import { callBrowseFetchPage } from '~/modules/browse/browse.client';
 import { llmChatGenerateOrThrow, VChatMessageIn } from '~/modules/llms/llm.client';
+
+import { frontendSideFetch } from '~/common/util/clientFetchers';
 
 
 // prompt to implement the ReAct paradigm: https://arxiv.org/abs/2210.03629
@@ -19,7 +22,7 @@ You will use "Action: " to run one of the actions available to you - then return
 "Observation" will be presented to you as the result of previous "Action".
 If the "Observation" you received is not related to the question asked, or you cannot derive the answer from the observation, change the Action to be performed and try again.
 
-ALWAYS assume today as {{currentDate}} when dealing with questions regarding dates.
+ALWAYS assume today as {{Today}} when dealing with questions regarding dates.
 Never mention your knowledge cutoff date
 
 Your available "Actions" are:
@@ -83,7 +86,7 @@ export class Agent {
               showState: (state: object) => void): Promise<string> {
     let i = 0;
     // TODO: to initialize with previous chat messages to provide context.
-    const S: State = this.initialize(`Question: ${question}`, enableBrowse, appendLog);
+    const S: State = this.initialize(`Question: ${question}`, llmId, enableBrowse, appendLog);
     showState(S);
     while (i < maxTurns && S.result === undefined) {
       i++;
@@ -100,9 +103,9 @@ export class Agent {
     return S.result || 'No result';
   }
 
-  initialize(question: string, enableBrowse: boolean, log: (...data: any[]) => void = console.log): State {
+  initialize(question: string, assistantLLMId: DLLMId, enableBrowse: boolean, log: (...data: any[]) => void = console.log): State {
     const state: State = {
-      messages: [{ role: 'system', content: reActPrompt(enableBrowse).replaceAll('{{currentDate}}', new Date().toISOString().slice(0, 10)) }],
+      messages: [{ role: 'system', content: bareBonesPromptMixer(reActPrompt(enableBrowse), assistantLLMId) }],
       nextPrompt: question,
       lastObservation: '',
       result: undefined,
@@ -171,7 +174,7 @@ export class Agent {
 type ActionFunction = (input: string) => Promise<string>;
 
 async function wikipedia(q: string): Promise<string> {
-  const response = await fetch(
+  const response = await frontendSideFetch(
     `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&origin=*`,
   );
   const data = await response.json();

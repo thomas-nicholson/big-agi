@@ -8,7 +8,8 @@ export const CommandsReact: ICommandsProvider = {
 
   getCommands: () => [{
     primary: '/react',
-    description: 'Use the AI ReAct strategy to answer your query (as sidebar)',
+    arguments: ['prompt'],
+    description: 'Use the AI ReAct strategy to answer your query',
     Icon: PsychologyIcon,
   }],
 

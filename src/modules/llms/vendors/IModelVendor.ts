@@ -4,7 +4,8 @@ import type { TRPCClientErrorBase } from '@trpc/client';
 import type { DLLM, DLLMId, DModelSourceId } from '../store-llms';
 import type { ModelDescriptionSchema } from '../server/llm.server.types';
 import type { ModelVendorId } from './vendors.registry';
-import type { VChatFunctionIn, VChatMessageIn, VChatMessageOrFunctionCallOut, VChatMessageOut } from '~/modules/llms/llm.client';
+import type { StreamingClientUpdate } from './unifiedStreamingClient';
+import type { VChatFunctionIn, VChatMessageIn, VChatMessageOrFunctionCallOut, VChatMessageOut } from '../llm.client';
 
 
 export interface IModelVendor<TSourceSetup = unknown, TAccess = unknown, TLLMOptions = unknown, TDLLM = DLLM<TSourceSetup, TLLMOptions>> {
@@ -14,7 +15,7 @@ export interface IModelVendor<TSourceSetup = unknown, TAccess = unknown, TLLMOpt
   readonly location: 'local' | 'cloud';
   readonly instanceLimit: number;
   readonly hasFreeModels?: boolean;
-  readonly hasBackendCap?: () => boolean;
+  readonly hasBackendCap?: () => boolean; // used to show a 'geen checkmark' in the list of vendors when adding sources
 
   // components
   readonly Icon: React.ComponentType | string;
@@ -25,11 +26,11 @@ export interface IModelVendor<TSourceSetup = unknown, TAccess = unknown, TLLMOpt
 
   initializeSetup?(): TSourceSetup;
 
-  validateSetup?(setup: TSourceSetup): boolean;
+  validateSetup?(setup: TSourceSetup): boolean; // client-side only, accessed via useSourceSetup
 
   getTransportAccess(setup?: Partial<TSourceSetup>): TAccess;
 
-  getRateLimitDelay?(llm: TDLLM): number;
+  getRateLimitDelay?(llm: TDLLM, setup: Partial<TSourceSetup>): number;
 
   rpcUpdateModelsQuery: (
     access: TAccess,
@@ -52,7 +53,7 @@ export interface IModelVendor<TSourceSetup = unknown, TAccess = unknown, TLLMOpt
     messages: VChatMessageIn[],
     functions: VChatFunctionIn[] | null, forceFunctionName: string | null,
     abortSignal: AbortSignal,
-    onUpdate: (update: Partial<{ text: string, typing: boolean, originLLM: string }>, done: boolean) => void,
+    onUpdate: (update: StreamingClientUpdate, done: boolean) => void,
   ) => Promise<void>;
 
 }

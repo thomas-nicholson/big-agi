@@ -3,12 +3,12 @@ import { shallow } from 'zustand/shallow';
 
 import { Box, Checkbox, Divider } from '@mui/joy';
 
-import { DModelSource, DModelSourceId, useModelsStore } from '~/modules/llms/store-llms';
-import { createModelSourceForDefaultVendor, findVendorById } from '~/modules/llms/vendors/vendors.registry';
-
 import { GoodModal } from '~/common/components/GoodModal';
-import { settingsGap } from '~/common/app.theme';
+import { runWhenIdle } from '~/common/util/pwaUtils';
 import { useOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
+
+import { DModelSource, DModelSourceId, useModelsStore } from '../store-llms';
+import { createModelSourceForDefaultVendor, findVendorById } from '../vendors/vendors.registry';
 
 import { LLMOptionsModal } from './LLMOptionsModal';
 import { ModelsList } from './ModelsList';
@@ -19,7 +19,7 @@ function VendorSourceSetup(props: { source: DModelSource }) {
   const vendor = findVendorById(props.source.vId);
   if (!vendor)
     return 'Configuration issue: Vendor not found for Source ' + props.source.id;
-  return <vendor.SourceSetupComponent sourceId={props.source.id} />;
+  return <vendor.SourceSetupComponent key={props.source.id} sourceId={props.source.id} />;
 }
 
 
@@ -42,24 +42,27 @@ export function ModelsModal(props: { suspendAutoModelsSetup?: boolean }) {
 
   // auto-select the first source - note: we could use a useEffect() here, but this is more efficient
   // also note that state-persistence is unneeded
-  const selectedSourceId = _selectedSourceId ?? modelSources[0]?.id ?? null;
+  const selectedSourceId = _selectedSourceId ?? modelSources[modelSources.length - 1]?.id ?? null;
 
   const activeSource = modelSources.find(source => source.id === selectedSourceId);
 
   const multiSource = modelSources.length > 1;
 
-  // if no sources at startup, open the modal
+  // Auto-open this dialog - anytime no source is selected
+  const autoOpenTrigger = !selectedSourceId && !props.suspendAutoModelsSetup;
   React.useEffect(() => {
-    if (!selectedSourceId && !props.suspendAutoModelsSetup)
-      openModelsSetup();
-  }, [selectedSourceId, props.suspendAutoModelsSetup, openModelsSetup]);
+    if (autoOpenTrigger)
+      return runWhenIdle(openModelsSetup, 2000);
+  }, [autoOpenTrigger, openModelsSetup]);
 
-  // add the default source on cold - will require setup
+  // Auto-add the default source - at boot, when no source is present
+  const autoAddTrigger = showModelsSetup && !props.suspendAutoModelsSetup;
   React.useEffect(() => {
+    // Note: we use the immediate version to not react to deletions
     const { addSource, sources } = useModelsStore.getState();
-    if (!sources.length && !props.suspendAutoModelsSetup)
+    if (autoAddTrigger && !sources.length)
       addSource(createModelSourceForDefaultVendor(sources));
-  }, [props.suspendAutoModelsSetup]);
+  }, [autoAddTrigger]);
 
 
   return <>
@@ -74,6 +77,10 @@ export function ModelsModal(props: { suspendAutoModelsSetup?: boolean }) {
         /> : undefined
       }
       open onClose={closeModelsSetup}
+      sx={{
+        // forces some shrinkage of the contents (ModelsList)
+        overflow: 'auto',
+      }}
     >
 
       <ModelsSourceSelector selectedSourceId={selectedSourceId} setSelectedSourceId={setSelectedSourceId} />
@@ -81,14 +88,36 @@ export function ModelsModal(props: { suspendAutoModelsSetup?: boolean }) {
       {!!activeSource && <Divider />}
 
       {!!activeSource && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: settingsGap }}>
+        <Box sx={{ display: 'grid', gap: 'var(--Card-padding)' }}>
           <VendorSourceSetup source={activeSource} />
         </Box>
       )}
 
       {!!llmCount && <Divider />}
 
-      {!!llmCount && <ModelsList filterSourceId={showAllSources ? null : selectedSourceId} onOpenLLMOptions={openLlmOptions} />}
+      {!!llmCount && (
+        <ModelsList
+          filterSourceId={showAllSources ? null : selectedSourceId}
+          onOpenLLMOptions={openLlmOptions}
+          sx={{
+            // works in tandem with the parent (GoodModal > Dialog) overflow: 'auto'
+            minHeight: '6rem',
+            overflowY: 'auto',
+
+            // style (list variant=outlined)
+            '--ListItem-paddingY': '0rem',
+            '--ListItem-paddingRight': '0.5rem', // instead of 0.75
+            backgroundColor: 'rgb(var(--joy-palette-neutral-lightChannel) / 20%)',
+            borderRadius: 'md',
+
+            // [mobile] a bit less padding
+            '@media (max-width: 900px)': {
+              '--ListItem-paddingLeft': '0.5rem',
+              '--ListItem-paddingRight': '0.25rem',
+            },
+          }}
+        />
+      )}
 
       <Divider />
 

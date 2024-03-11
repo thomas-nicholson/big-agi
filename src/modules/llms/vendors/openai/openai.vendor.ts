@@ -1,6 +1,6 @@
 import { backendCaps } from '~/modules/backend/state-backend';
 
-import { OpenAIIcon } from '~/common/components/icons/OpenAIIcon';
+import { OpenAIIcon } from '~/common/components/icons/vendors/OpenAIIcon';
 import { apiAsync, apiQuery } from '~/common/util/trpc.client';
 
 import type { IModelVendor } from '../IModelVendor';
@@ -39,7 +39,7 @@ export const ModelVendorOpenAI: IModelVendor<SourceSetupOpenAI, OpenAIAccessSche
   name: 'OpenAI',
   rank: 10,
   location: 'cloud',
-  instanceLimit: 1,
+  instanceLimit: 5,
   hasBackendCap: () => backendCaps().hasLlmOpenAI,
 
   // components

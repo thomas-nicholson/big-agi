@@ -5,13 +5,13 @@ import { SxProps } from '@mui/joy/styles/types';
 import InfoIcon from '@mui/icons-material/Info';
 
 import { GoodTooltip } from '~/common/components/GoodTooltip';
-import { settingsCol1Width } from '~/common/app.theme';
+import { formLabelStartWidth } from '~/common/app.theme';
 
 
 /**
  * Shared label part (left side)
  */
-export const FormLabelStart = (props: {
+const FormLabelStartBase = (props: {
   title: string | React.JSX.Element,
   description?: string | React.JSX.Element
   tooltip?: string | React.JSX.Element,
@@ -23,7 +23,7 @@ export const FormLabelStart = (props: {
       <FormLabel
         onClick={props.onClick}
         sx={{
-          minWidth: settingsCol1Width,
+          minWidth: formLabelStartWidth,
           ...(!!props.onClick && { cursor: 'pointer', textDecoration: 'underline' }),
           ...props.sx,
         }}
@@ -48,3 +48,6 @@ export const FormLabelStart = (props: {
     </Box>
   , [props.onClick, props.sx, props.title, props.tooltip, props.description],
 );
+FormLabelStartBase.displayName = 'FormLabelStart';
+
+export const FormLabelStart = React.memo(FormLabelStartBase);

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { shallow } from 'zustand/shallow';
 
+/*
+ NOTE: this file is used IN THE FRONTEND - it's meant to be telling the frontend what the backend capabilities are.
+ */
 
 export interface BackendCapabilities {
   hasDB: boolean;
@@ -10,10 +13,15 @@ export interface BackendCapabilities {
   hasLlmAnthropic: boolean;
   hasLlmAzureOpenAI: boolean;
   hasLlmGemini: boolean;
+  hasLlmGroq: boolean;
+  hasLlmLocalAIHost: boolean;
+  hasLlmLocalAIKey: boolean;
   hasLlmMistral: boolean;
   hasLlmOllama: boolean;
   hasLlmOpenAI: boolean;
   hasLlmOpenRouter: boolean;
+  hasLlmPerplexity: boolean;
+  hasLlmTogetherAI: boolean;
   hasVoiceElevenLabs: boolean;
 }
 
@@ -33,10 +41,15 @@ const useBackendStore = create<BackendStore>()(
     hasLlmAnthropic: false,
     hasLlmAzureOpenAI: false,
     hasLlmGemini: false,
+    hasLlmGroq: false,
+    hasLlmLocalAIHost: false,
+    hasLlmLocalAIKey: false,
     hasLlmMistral: false,
     hasLlmOllama: false,
     hasLlmOpenAI: false,
     hasLlmOpenRouter: false,
+    hasLlmPerplexity: false,
+    hasLlmTogetherAI: false,
     hasVoiceElevenLabs: false,
 
     loadedCapabilities: false,
@@ -50,7 +63,7 @@ const useBackendStore = create<BackendStore>()(
 );
 
 
-export function useBackendCapsLoader(): [boolean, (capabilities: Partial<BackendCapabilities>) => void] {
+export function useBackendCapsKnowledge(): [boolean, (capabilities: Partial<BackendCapabilities>) => void] {
   return useBackendStore(state => [state.loadedCapabilities, state.setCapabilities], shallow);
 }
 

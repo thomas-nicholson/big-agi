@@ -80,7 +80,7 @@ interface ModelsData {
 }
 
 interface ModelsActions {
-  setLLMs: (llms: DLLM[], sourceId: DModelSourceId, preserveExpired?: boolean) => void;
+  setLLMs: (llms: DLLM[], sourceId: DModelSourceId, deleteExpiredVendorLlms: boolean, keepUserEdits: boolean) => void;
   removeLLM: (id: DLLMId) => void;
   updateLLM: (id: DLLMId, partial: Partial<DLLM>) => void;
   updateLLMOptions: <TLLMOptions>(id: DLLMId, partialOptions: Partial<TLLMOptions>) => void;
@@ -119,12 +119,25 @@ export const useModelsStore = create<LlmsStore>()(
         set(state => updateSelectedIds(state.llms, state.chatLLMId, state.fastLLMId, id)),
 
       // NOTE: make sure to the _source links (sId foreign) are already set before calling this
-      setLLMs: (llms: DLLM[], sourceId: DModelSourceId, preserveExpired?: boolean) =>
+      setLLMs: (llms: DLLM[], sourceId: DModelSourceId, deleteExpiredVendorLlms: boolean, keepUserEdits: boolean) =>
         set(state => {
 
-          const otherLlms = preserveExpired === true
-            ? state.llms
-            : state.llms.filter(llm => llm.sId !== sourceId);
+          // keep existing model customizations
+          if (keepUserEdits) {
+            llms = llms.map(llm => {
+              const existing = state.llms.find(m => m.id === llm.id);
+              return !existing ? llm : {
+                ...llm,
+                label: existing.label, // keep label
+                hidden: existing.hidden, // keep hidden
+                options: { ...existing.options, ...llm.options }, // keep custom configurations, but overwrite as the new could have massively improved params
+              };
+            });
+          }
+
+          const otherLlms = deleteExpiredVendorLlms
+            ? state.llms.filter(llm => llm.sId !== sourceId)
+            : state.llms;
 
           // replace existing llms with the same id
           const newLlms = [...llms, ...otherLlms.filter(llm => !llms.find(m => m.id === llm.id))];
@@ -163,9 +176,23 @@ export const useModelsStore = create<LlmsStore>()(
 
 
       addSource: (source: DModelSource) =>
-        set(state => ({
-          sources: [...state.sources, source],
-        })),
+        set(state => {
+
+          // re-number all sources for the given vendor
+          let n = 0;
+          const sourceVId = source.vId;
+
+          return {
+            sources: [...state.sources, source].map(_source =>
+              _source.vId != sourceVId
+                ? _source
+                : {
+                  ..._source,
+                  label: _source.label.replace(/ #\d+$/, '') + (++n > 1 ? ` #${n}` : ''),
+                },
+            ),
+          };
+        }),
 
       removeSource: (id: DModelSourceId) =>
         set(state => {
@@ -239,6 +266,10 @@ export const useModelsStore = create<LlmsStore>()(
 );
 
 
+export const getChatLLMId = (): DLLMId | null => useModelsStore.getState().chatLLMId;
+
+export const getFastLLMId = (): DLLMId | null => useModelsStore.getState().fastLLMId;
+
 export function findLLMOrThrow<TSourceSetup, TLLMOptions>(llmId: DLLMId): DLLM<TSourceSetup, TLLMOptions> {
   const llm = useModelsStore.getState().llms.find(llm => llm.id === llmId);
   if (!llm) throw new Error(`LLM ${llmId} not found`);
@@ -253,9 +284,23 @@ export function findSourceOrThrow<TSourceSetup>(sourceId: DModelSourceId) {
 }
 
 
-const defaultChatSuffixPreference = ['gpt-4-1106-preview', 'gpt-4-0613', 'gpt-4', 'gpt-4-32k', 'gpt-3.5-turbo'];
-const defaultFastSuffixPreference = ['gpt-3.5-turbo-1106', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo'];
-const defaultFuncSuffixPreference = ['gpt-4-1106-preview', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-4-0613'];
+const modelsKnowledgeMap: { contains: string[], cutoff: string }[] = [
+  { contains: ['4-0125', '4-turbo'], cutoff: '2023-12' },
+  { contains: ['4-1106', '4-vision'], cutoff: '2023-04' },
+  { contains: ['4-0613', '4-0314', '4-32k', '3.5-turbo'], cutoff: '2021-09' },
+] as const;
+
+export function getKnowledgeMapCutoff(llmId?: DLLMId): string | null {
+  if (llmId)
+    for (const { contains, cutoff } of modelsKnowledgeMap)
+      if (contains.some(c => llmId.includes(c)))
+        return cutoff;
+  return null;
+}
+
+const defaultChatSuffixPreference = ['gpt-4-0125-preview', 'gpt-4-1106-preview', 'gpt-4-0613', 'gpt-4', 'gpt-4-32k', 'gpt-3.5-turbo'];
+const defaultFastSuffixPreference = ['gpt-3.5-turbo-0125', 'gpt-3.5-turbo-1106', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-3.5-turbo-16k', 'gpt-3.5-turbo'];
+const defaultFuncSuffixPreference = ['gpt-4-0125-preview', 'gpt-4-1106-preview', 'gpt-3.5-turbo-16k-0613', 'gpt-3.5-turbo-0613', 'gpt-4-0613'];
 
 function updateSelectedIds(allLlms: DLLM[], chatLlmId: DLLMId | null, fastLlmId: DLLMId | null, funcLlmId: DLLMId | null): Partial<ModelsData> {
   if (chatLlmId && !allLlms.find(llm => llm.id === chatLlmId)) chatLlmId = null;
@@ -276,8 +321,15 @@ function findLlmIdBySuffix(llms: DLLM[], suffixes: string[], fallbackToFirst: bo
     for (const llm of llms)
       if (llm.id.endsWith(suffix))
         return llm.id;
+  if (!fallbackToFirst) return null;
+
+  // otherwise return first that's not hidden
+  for (const llm of llms)
+    if (!llm.hidden)
+      return llm.id;
+
   // otherwise return first id
-  return fallbackToFirst ? llms[0].id : null;
+  return llms[0].id;
 }
 
 
@@ -290,4 +342,9 @@ export function useChatLLM() {
     const chatLLM = chatLLMId ? state.llms.find(llm => llm.id === chatLLMId) ?? null : null;
     return { chatLLM };
   }, shallow);
+}
+
+export function getLLMsDebugInfo() {
+  const { llms, sources, chatLLMId, fastLLMId, funcLLMId } = useModelsStore.getState();
+  return { sources: sources.length, llmsCount: llms.length, chatId: chatLLMId, fastId: fastLLMId, funcId: funcLLMId };
 }

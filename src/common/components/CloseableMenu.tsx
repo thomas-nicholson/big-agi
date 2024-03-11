@@ -23,6 +23,7 @@ const Popup = styled(Popper)({
 export function CloseableMenu(props: {
   open: boolean, anchorEl: HTMLElement | null, onClose: () => void,
   dense?: boolean,
+  bigIcons?: boolean,
   // variant?: VariantProp,
   // color?: ColorPaletteProp,
   // size?: 'sm' | 'md' | 'lg',
@@ -33,6 +34,7 @@ export function CloseableMenu(props: {
   noBottomPadding?: boolean,
   sx?: SxProps,
   zIndex?: number,
+  listRef?: React.Ref<HTMLUListElement>,
   children?: React.ReactNode,
 }) {
 
@@ -71,12 +73,17 @@ export function CloseableMenu(props: {
     >
       <ClickAwayListener onClickAway={handleClose}>
         <MenuList
+          ref={props.listRef}
           // variant={props.variant} color={props.color}
           onKeyDown={handleListKeyDown}
           sx={{
-            '--Icon-fontSize': 'var(--joy-fontSize-xl2)',
-            '--ListItem-minHeight': props.dense ? '2.25rem' : '3rem',
-            '--ListItemDecorator-size': '2.75rem', // icon width
+            '--ListItem-minHeight': props.dense
+              ? '2.25rem' /* 2.25 is the default */
+              : '2.5rem', /* we enlarge the default  */
+            ...(props.bigIcons && {
+              '--Icon-fontSize': 'var(--joy-fontSize-xl2)',
+              // '--ListItemDecorator-size': '2.75rem',
+            }),
             backgroundColor: 'background.popup',
             boxShadow: 'md',
             ...(props.maxHeightGapPx !== undefined ? { maxHeight: `calc(100dvh - ${props.maxHeightGapPx}px)`, overflowY: 'auto' } : {}),

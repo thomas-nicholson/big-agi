@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { LinkStorageDataType, LinkStorageVisibility } from '@prisma/client';
 
-import { db } from '~/server/db';
+import { prismaDb } from '~/server/prisma/prismaDb';
 import { publicProcedure } from '~/server/api/trpc.server';
 
 
@@ -33,6 +33,7 @@ export const storagePutOutputSchema = z.union([
     createdAt: z.date(),
     expiresAt: z.date().nullable(),
     deletionKey: z.string(),
+    dataTitle: z.string().nullable(),
   }),
   z.object({
     type: z.literal('error'),
@@ -71,9 +72,22 @@ export const storageDeleteOutputSchema = z.object({
   error: z.string().optional(),
 });
 
+const storageUpdateDeletionKeyInputSchema = z.object({
+  objectId: z.string(),
+  ownerId: z.string().optional(),
+  formerKey: z.string(),
+  newKey: z.string(),
+});
+
+export const storageUpdateDeletionKeyOutputSchema = z.object({
+  type: z.enum(['success', 'error']),
+  error: z.string().optional(),
+});
+
 
 export type StoragePutSchema = z.infer<typeof storagePutOutputSchema>;
 export type StorageDeleteSchema = z.infer<typeof storageDeleteOutputSchema>;
+export type StorageUpdateDeletionKeySchema = z.infer<typeof storageUpdateDeletionKeyOutputSchema>;
 
 
 /// tRPC procedures
@@ -89,7 +103,7 @@ export const storagePutProcedure =
 
       const { ownerId, dataType, dataTitle, dataObject, expiresSeconds } = input;
 
-      const { id: objectId, ...rest } = await db.linkStorage.create({
+      const { id: objectId, ...rest } = await prismaDb.linkStorage.create({
         select: {
           id: true,
           ownerId: true,
@@ -115,6 +129,7 @@ export const storagePutProcedure =
       return {
         type: 'success',
         objectId,
+        dataTitle: dataTitle || null,
         ...rest,
       };
 
@@ -131,7 +146,7 @@ export const storageGetProcedure =
     .query(async ({ input: { objectId, ownerId } }) => {
 
       // read object
-      const result = await db.linkStorage.findUnique({
+      const result = await prismaDb.linkStorage.findUnique({
         select: {
           dataType: true,
           dataTitle: true,
@@ -166,7 +181,7 @@ export const storageGetProcedure =
       // increment the read count
       // NOTE: fire-and-forget; we don't care about the result
       {
-        db.linkStorage.update({
+        prismaDb.linkStorage.update({
           select: {
             id: true,
           },
@@ -202,12 +217,12 @@ export const storageMarkAsDeletedProcedure =
     .output(storageDeleteOutputSchema)
     .mutation(async ({ input: { objectId, ownerId, deletionKey } }) => {
 
-      const result = await db.linkStorage.updateMany({
+      const result = await prismaDb.linkStorage.updateMany({
         where: {
           id: objectId,
           ownerId: ownerId || undefined,
           deletionKey,
-          isDeleted: false,
+          // isDeleted: false,
         },
         data: {
           isDeleted: true,
@@ -219,6 +234,36 @@ export const storageMarkAsDeletedProcedure =
 
       return {
         type: success ? 'success' : 'error',
-        error: success ? undefined : 'Not found',
+        error: success ? undefined : 'invalid deletion key?',
+      };
+    });
+
+
+/**
+ * Update the deletion Key of a public object by ID and deletion key
+ */
+export const storageUpdateDeletionKeyProcedure =
+  publicProcedure
+    .input(storageUpdateDeletionKeyInputSchema)
+    .output(storageUpdateDeletionKeyOutputSchema)
+    .mutation(async ({ input: { objectId, ownerId, formerKey, newKey } }) => {
+
+      const result = await prismaDb.linkStorage.updateMany({
+        where: {
+          id: objectId,
+          ownerId: ownerId || undefined,
+          deletionKey: formerKey,
+          // isDeleted: false,
+        },
+        data: {
+          deletionKey: newKey,
+        },
+      });
+
+      const success = result.count === 1;
+
+      return {
+        type: success ? 'success' : 'error',
+        error: success ? undefined : 'invalid former key',
       };
     });

@@ -2,14 +2,14 @@ import * as React from 'react';
 
 import type { SxProps } from '@mui/joy/styles/types';
 import { IconButton, Sheet, Typography } from '@mui/joy';
-import CloseIcon from '@mui/icons-material/Close';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 
 
 export const PageDrawerHeader = (props: {
   title: string,
   onClose: () => void,
-  startButton?: React.ReactNode,
-  sx?: SxProps
+  sx?: SxProps,
+  children?: React.ReactNode,
 }) =>
   <Sheet
     variant='outlined'
@@ -27,19 +27,18 @@ export const PageDrawerHeader = (props: {
       borderTop: 'none',
       borderLeft: 'none',
       borderRight: 'none',
+      // borderTopRightRadius: 'var(--AGI-Optima-Radius)',
     }}
   >
 
-    {props.startButton
-      ? props.startButton
-      : <IconButton disabled />}
+    {props.children || <IconButton disabled />}
 
     <Typography level='title-md'>
       {props.title}
     </Typography>
 
-    <IconButton onClick={props.onClose}>
-      <CloseIcon />
+    <IconButton aria-label='Close Drawer' onClick={props.onClose}>
+      <CloseRoundedIcon />
     </IconButton>
 
   </Sheet>;

@@ -1,6 +1,6 @@
 import { backendCaps } from '~/modules/backend/state-backend';
 
-import { AnthropicIcon } from '~/common/components/icons/AnthropicIcon';
+import { AnthropicIcon } from '~/common/components/icons/vendors/AnthropicIcon';
 import { apiAsync, apiQuery } from '~/common/util/trpc.client';
 
 import type { AnthropicAccessSchema } from '../../server/anthropic/anthropic.router';
@@ -62,7 +62,7 @@ export const ModelVendorAnthropic: IModelVendor<SourceSetupAnthropic, AnthropicA
 
     const { llmRef, llmTemperature, llmResponseTokens } = llmOptions;
     try {
-      return await apiAsync.llmAnthropic.chatGenerate.mutate({
+      return await apiAsync.llmAnthropic.chatGenerateMessage.mutate({
         access,
         model: {
           id: llmRef,

@@ -87,6 +87,13 @@ function attachmentConverterIcon(attachment: Attachment) {
 }
 
 function attachmentLabelText(attachment: Attachment): string {
+  const converter = attachment.converterIdx !== null ? attachment.converters[attachment.converterIdx] ?? null : null;
+  if (converter && attachment.label === 'Rich Text') {
+    if (converter.id === 'rich-text-table')
+      return 'Rich Table';
+    if (converter.id === 'rich-text')
+      return 'Rich HTML';
+  }
   return ellipsizeFront(attachment.label, 24);
 }
 
@@ -177,7 +184,6 @@ export function AttachmentItem(props: {
               border: variant === 'soft' ? '1px solid' : undefined,
               borderColor: variant === 'soft' ? `${color}.solidBg` : undefined,
               borderRadius: 'sm',
-              fontWeight: 'normal',
               ...ATTACHMENT_MIN_STYLE,
               px: 1, py: 0.5,
               display: 'flex', flexDirection: 'row', gap: 1,

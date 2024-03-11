@@ -12,16 +12,22 @@ export function CallMessage(props: {
   role: VChatMessageIn['role'],
   sx?: SxProps,
 }) {
+  const isUserMessage = props.role === 'user';
   return (
     <Chip
       color={props.color} variant={props.variant}
       sx={{
-        alignSelf: props.role === 'user' ? 'end' : 'start',
+        alignSelf: isUserMessage ? 'end' : 'start',
         whiteSpace: 'break-spaces',
         borderRadius: 'lg',
-        mt: 'auto',
+        ...(isUserMessage ? {
+          borderBottomRightRadius: 0,
+        } : {
+          borderBottomLeftRadius: 0,
+        }),
         // boxShadow: 'md',
         py: 1,
+        px: 1.5,
         ...(props.sx || {}),
       }}
     >

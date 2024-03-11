@@ -1,6 +1,7 @@
 import { ModelVendorAnthropic } from './anthropic/anthropic.vendor';
 import { ModelVendorAzure } from './azure/azure.vendor';
 import { ModelVendorGemini } from './gemini/gemini.vendor';
+import { ModelVendorGroq } from './groq/groq.vendor';
 import { ModelVendorLMStudio } from './lmstudio/lmstudio.vendor';
 import { ModelVendorLocalAI } from './localai/localai.vendor';
 import { ModelVendorMistral } from './mistral/mistral.vendor';
@@ -8,6 +9,8 @@ import { ModelVendorOllama } from './ollama/ollama.vendor';
 import { ModelVendorOoobabooga } from './oobabooga/oobabooga.vendor';
 import { ModelVendorOpenAI } from './openai/openai.vendor';
 import { ModelVendorOpenRouter } from './openrouter/openrouter.vendor';
+import { ModelVendorPerplexity } from './perplexity/perplexity.vendor';
+import { ModelVendorTogetherAI } from './togetherai/togetherai.vendor';
 
 import type { IModelVendor } from './IModelVendor';
 import { DLLMId, DModelSource, DModelSourceId, findLLMOrThrow, findSourceOrThrow } from '../store-llms';
@@ -16,19 +19,23 @@ export type ModelVendorId =
   | 'anthropic'
   | 'azure'
   | 'googleai'
+  | 'groq'
   | 'lmstudio'
   | 'localai'
   | 'mistral'
   | 'ollama'
   | 'oobabooga'
   | 'openai'
-  | 'openrouter';
+  | 'openrouter'
+  | 'perplexity'
+  | 'togetherai';
 
 /** Global: Vendor Instances Registry **/
 const MODEL_VENDOR_REGISTRY: Record<ModelVendorId, IModelVendor> = {
   anthropic: ModelVendorAnthropic,
   azure: ModelVendorAzure,
   googleai: ModelVendorGemini,
+  groq: ModelVendorGroq,
   lmstudio: ModelVendorLMStudio,
   localai: ModelVendorLocalAI,
   mistral: ModelVendorMistral,
@@ -36,6 +43,8 @@ const MODEL_VENDOR_REGISTRY: Record<ModelVendorId, IModelVendor> = {
   oobabooga: ModelVendorOoobabooga,
   openai: ModelVendorOpenAI,
   openrouter: ModelVendorOpenRouter,
+  perplexity: ModelVendorPerplexity,
+  togetherai: ModelVendorTogetherAI,
 } as Record<string, IModelVendor>;
 
 const MODEL_VENDOR_DEFAULT: ModelVendorId = 'openai';
@@ -83,7 +92,7 @@ export function createModelSourceForVendor(vendorId: ModelVendorId, otherSources
   // create the source
   return {
     id: sourceId,
-    label: vendor.name + (sourceN > 0 ? ` #${sourceN}` : ''),
+    label: vendor.name, // NOTE: will be (re/) numbered upon adding to the store
     vId: vendorId,
     setup: vendor.initializeSetup?.() || {},
   };

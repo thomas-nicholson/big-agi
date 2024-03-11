@@ -1,59 +1,21 @@
 import * as React from 'react';
-import { keyframes } from '@emotion/react';
 
 import { Box, Button, Card, CardContent, IconButton, ListItemDecorator, Typography } from '@mui/joy';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import ChatIcon from '@mui/icons-material/Chat';
 import CheckIcon from '@mui/icons-material/Check';
-import CloseIcon from '@mui/icons-material/Close';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import MicIcon from '@mui/icons-material/Mic';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
-import WarningIcon from '@mui/icons-material/Warning';
+import WarningRoundedIcon from '@mui/icons-material/WarningRounded';
 
+import { PreferencesTab, useOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
+import { animationColorRainbow } from '~/common/util/animUtils';
 import { navigateBack } from '~/common/app.routes';
 import { useCapabilityBrowserSpeechRecognition, useCapabilityElevenLabs } from '~/common/components/useCapabilities';
 import { useChatStore } from '~/common/state/store-chats';
-import { useOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
 import { useUICounter } from '~/common/state/store-ui';
 
-
-const cssRainbowBackgroundKeyframes = keyframes`
-    100%, 0% {
-        background-color: rgb(128, 0, 0);
-    }
-    8% {
-        background-color: rgb(102, 51, 0);
-    }
-    16% {
-        background-color: rgb(64, 64, 0);
-    }
-    25% {
-        background-color: rgb(38, 76, 0);
-    }
-    33% {
-        background-color: rgb(0, 89, 0);
-    }
-    41% {
-        background-color: rgb(0, 76, 41);
-    }
-    50% {
-        background-color: rgb(0, 64, 64);
-    }
-    58% {
-        background-color: rgb(0, 51, 102);
-    }
-    66% {
-        background-color: rgb(0, 0, 128);
-    }
-    75% {
-        background-color: rgb(63, 0, 128);
-    }
-    83% {
-        background-color: rgb(76, 0, 76);
-    }
-    91% {
-        background-color: rgb(102, 0, 51);
-    }`;
 
 function StatusCard(props: { icon: React.JSX.Element, hasIssue: boolean, text: string, button?: React.JSX.Element }) {
   return (
@@ -67,7 +29,7 @@ function StatusCard(props: { icon: React.JSX.Element, hasIssue: boolean, text: s
           {props.button}
         </Typography>
         <ListItemDecorator>
-          {props.hasIssue ? <WarningIcon color='warning' /> : <CheckIcon color='success' />}
+          {props.hasIssue ? <WarningRoundedIcon color='warning' /> : <CheckIcon color='success' />}
         </ListItemDecorator>
       </CardContent>
     </Card>
@@ -75,7 +37,8 @@ function StatusCard(props: { icon: React.JSX.Element, hasIssue: boolean, text: s
 }
 
 
-export function CallWizard(props: { strict?: boolean, conversationId: string, children: React.ReactNode }) {
+export function CallWizard(props: { strict?: boolean, conversationId: string | null, children: React.ReactNode }) {
+
   // state
   const [chatEmptyOverride, setChatEmptyOverride] = React.useState(false);
   const [recognitionOverride, setRecognitionOverride] = React.useState(false);
@@ -85,12 +48,15 @@ export function CallWizard(props: { strict?: boolean, conversationId: string, ch
   const recognition = useCapabilityBrowserSpeechRecognition();
   const synthesis = useCapabilityElevenLabs();
   const chatIsEmpty = useChatStore(state => {
+    if (!props.conversationId)
+      return false;
     const conversation = state.conversations.find(conversation => conversation.id === props.conversationId);
     return !(conversation?.messages?.length);
   });
   const { novel, touch } = useUICounter('call-wizard');
 
   // derived state
+  const outOfTheBlue = !props.conversationId;
   const overriddenEmptyChat = chatEmptyOverride || !chatIsEmpty;
   const overriddenRecognition = recognitionOverride || recognition.mayWork;
   const allGood = overriddenEmptyChat && overriddenRecognition && synthesis.mayWork;
@@ -104,7 +70,7 @@ export function CallWizard(props: { strict?: boolean, conversationId: string, ch
   const handleOverrideRecognition = () => setRecognitionOverride(true);
 
   const handleConfigureElevenLabs = () => {
-    openPreferencesTab(3);
+    openPreferencesTab(PreferencesTab.Voice);
   };
 
   const handleFinishButton = () => {
@@ -118,16 +84,11 @@ export function CallWizard(props: { strict?: boolean, conversationId: string, ch
 
     <Box sx={{ flexGrow: 0.5 }} />
 
-    <Typography level='title-lg' sx={{ fontSize: '3rem', fontWeight: 200, lineHeight: '1.5em', textAlign: 'center' }}>
+    <Typography level='title-lg' sx={{ fontSize: '3rem', fontWeight: 'sm', textAlign: 'center' }}>
       Welcome to<br />
-      <Typography
-        component='span'
-        sx={{
-          backgroundColor: 'primary.solidActiveBg', mx: -0.5, px: 0.5,
-          animation: `${cssRainbowBackgroundKeyframes} 15s linear infinite`,
-        }}>
+      <Box component='span' sx={{ animation: `${animationColorRainbow} 15s linear infinite` }}>
         your first call
-      </Typography>
+      </Box>
     </Typography>
 
     <Box sx={{ flexGrow: 0.5 }} />
@@ -138,7 +99,7 @@ export function CallWizard(props: { strict?: boolean, conversationId: string, ch
     </Typography>
 
     {/* Chat Empty status */}
-    <StatusCard
+    {!outOfTheBlue && <StatusCard
       icon={<ChatIcon />}
       hasIssue={!overriddenEmptyChat}
       text={overriddenEmptyChat ? 'Great! Your chat has messages.' : 'The chat is empty. Calls are effective when the caller has context.'}
@@ -147,7 +108,7 @@ export function CallWizard(props: { strict?: boolean, conversationId: string, ch
           Ignore
         </Button>
       )}
-    />
+    />}
 
     {/* Add the speech to text feature status */}
     <StatusCard
@@ -199,14 +160,21 @@ export function CallWizard(props: { strict?: boolean, conversationId: string, ch
       </Typography>
 
       <IconButton
-        size='lg' variant={allGood ? 'soft' : 'solid'} color={allGood ? 'success' : 'danger'}
-        onClick={handleFinishButton} sx={{ borderRadius: '50px', mr: 0.5 }}
+        size='lg'
+        variant='solid' color={allGood ? 'success' : 'danger'}
+        onClick={handleFinishButton}
+        sx={{
+          borderRadius: '50px',
+          mr: 0.5,
+          // animation: `${cssRainbowBackgroundKeyframes} 15s linear infinite`,
+          // boxShadow: allGood ? 'md' : 'none',
+        }}
       >
-        {allGood ? <ArrowForwardIcon sx={{ fontSize: '1.5em' }} /> : <CloseIcon sx={{ fontSize: '1.5em' }} />}
+        {allGood ? <ArrowForwardIcon sx={{ fontSize: '1.5em' }} /> : <CloseRoundedIcon sx={{ fontSize: '1.5em' }} />}
       </IconButton>
     </Box>
 
-    <Box sx={{ flexGrow: 0.5 }} />
+    <Box sx={{ flexGrow: 2 }} />
 
   </>;
 }

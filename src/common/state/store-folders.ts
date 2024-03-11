@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { shallow } from 'zustand/shallow';
 import { devtools, persist } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -15,10 +14,11 @@ export interface DFolder {
 
 interface FolderState {
   folders: DFolder[];
-  useFolders: boolean; // user setting - default to off until we get enough feedback
+  enableFolders: boolean; // user setting - default to off until we get enough feedback
 }
 
 interface FolderActions {
+  importFoldersAppend: (folders: DFolder[], enableFolders: boolean) => void;
   createFolder: (title: string, color?: string) => void;
   deleteFolder: (folderId: string) => void;
   moveFolder: (fromIndex: number, toIndex: number) => void;
@@ -26,7 +26,7 @@ interface FolderActions {
   setFolderColor: (folderId: string, color: string) => void;
   addConversationToFolder: (folderId: string, conversationId: DConversationId) => void;
   removeConversationFromFolder: (folderId: string, conversationId: DConversationId) => void;
-  toggleUseFolders: () => void;
+  toggleEnableFolders: () => void;
 }
 
 type FolderStore = FolderState & FolderActions;
@@ -37,7 +37,17 @@ export const useFolderStore = create<FolderStore>()(devtools(
 
       // Initial state
       folders: [],
-      useFolders: false,
+      enableFolders: false,
+
+      // Actions
+      importFoldersAppend: (folders: DFolder[], enableFolders: boolean) =>
+        set(state => ({
+          folders: [
+            ...state.folders.filter(f => !folders.find(f2 => f2.id === f.id)),
+            ...folders,
+          ],
+          enableFolders: enableFolders || state.enableFolders,
+        })),
 
       createFolder: (title: string, color?: string) => {
         const newFolder: DFolder = {
@@ -105,8 +115,8 @@ export const useFolderStore = create<FolderStore>()(devtools(
           ),
         })),
 
-      toggleUseFolders: () => set(state => ({
-        useFolders: !state.useFolders,
+      toggleEnableFolders: () => set(state => ({
+        enableFolders: !state.enableFolders,
       })),
 
     }),
@@ -147,9 +157,3 @@ export function getRotatingFolderColor(): string {
   const randomIndex = Math.floor(Math.random() * (FOLDERS_COLOR_PALETTE.length / 3));
   return FOLDERS_COLOR_PALETTE[randomIndex];
 }
-
-export const useFoldersToggle = () =>
-  useFolderStore(state => ({
-    useFolders: state.useFolders,
-    toggleUseFolders: state.toggleUseFolders,
-  }), shallow);

@@ -1,22 +1,53 @@
 import * as React from 'react';
 import { shallow } from 'zustand/shallow';
 
-import { Box, Chip, IconButton, List, ListItem, ListItemButton, Typography } from '@mui/joy';
+import type { SxProps } from '@mui/joy/styles/types';
+import { Chip, IconButton, List, ListItem, ListItemButton, Typography } from '@mui/joy';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 
-import { DLLM, DLLMId, DModelSourceId, useModelsStore } from '~/modules/llms/store-llms';
-import { IModelVendor } from '~/modules/llms/vendors/IModelVendor';
-import { findVendorById } from '~/modules/llms/vendors/vendors.registry';
 
 import { GoodTooltip } from '~/common/components/GoodTooltip';
 
+import { DLLM, DLLMId, DModelSourceId, useModelsStore } from '../store-llms';
+import { IModelVendor } from '../vendors/IModelVendor';
+import { findVendorById } from '../vendors/vendors.registry';
 
-function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, chipFast: boolean, chipFunc: boolean, onClick: () => void }) {
+
+const absorbListPadding: SxProps = { my: 'calc(var(--ListItem-paddingY) / -2)' };
+
+function ModelItem(props: {
+  llm: DLLM,
+  vendor: IModelVendor,
+  chipChat: boolean,
+  chipFast: boolean,
+  chipFunc: boolean,
+  onModelClicked: (llmId: DLLMId) => void,
+  onModelSetHidden: (llmId: DLLMId, hidden: boolean) => void,
+}) {
 
   // derived
-  const llm = props.llm;
+  const { llm, onModelClicked, onModelSetHidden } = props;
+
+  const handleLLMConfigure = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    onModelClicked(llm.id);
+  }, [llm.id, onModelClicked]);
+
+  const handleLLMHide = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    onModelSetHidden(llm.id, true);
+  }, [llm.id, onModelSetHidden]);
+
+  const handleLLMUnhide = React.useCallback((event: React.MouseEvent) => {
+    event.stopPropagation();
+    onModelSetHidden(llm.id, false);
+  }, [llm.id, onModelSetHidden]);
+
+
   const label = llm.label;
+
   let tooltip = llm._source.label;
   if (llm.description)
     tooltip += ' - ' + llm.description;
@@ -24,39 +55,49 @@ function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, 
   if (llm.contextTokens) {
     tooltip += llm.contextTokens.toLocaleString() + ' tokens';
     if (llm.maxOutputTokens)
-      tooltip += ' / ' + llm.maxOutputTokens.toLocaleString() + ' max output tokens'
+      tooltip += ' / ' + llm.maxOutputTokens.toLocaleString() + ' max output tokens';
   } else
     tooltip += 'token count not provided';
 
   return (
     <ListItem>
-      <ListItemButton onClick={props.onClick} sx={{ alignItems: 'center', gap: 1 }}>
+      <ListItemButton
+        aria-label='Configure LLM'
+        onClick={handleLLMConfigure}
+        tabIndex={-1}
+        sx={{
+          width: '100%',
+          display: 'flex', alignItems: 'center', gap: { xs: 0.5, md: 1 },
+        }}
+      >
 
         {/* Model Name */}
         <GoodTooltip title={tooltip}>
-          <Typography sx={llm.hidden ? { color: 'neutral.plainDisabledColor' } : undefined}>
+          <Typography sx={{
+            flex: 1,
+            color: llm.hidden ? 'neutral.plainDisabledColor' : 'text.primary',
+            wordBreak: 'break-all',
+          }}>
             {label}
           </Typography>
         </GoodTooltip>
 
-        {/* --> */}
-        <Box sx={{ flex: 1 }} />
-
+        {/* Chips */}
         {props.chipChat && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>chat</Chip>}
-
         {props.chipFast && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>fast</Chip>}
-
         {props.chipFunc && <Chip size='sm' variant='plain' sx={{ boxShadow: 'sm' }}>𝑓n</Chip>}
 
-        {llm.hidden && (
-          <IconButton disabled size='sm'>
-            <VisibilityOffOutlinedIcon />
+        <GoodTooltip title={llm.hidden ? 'Hidden' : 'Shown in Chat'}>
+          <IconButton aria-label={llm.hidden ? 'Unhide' : 'Hide in Chat'} size='sm' onClick={llm.hidden ? handleLLMUnhide : handleLLMHide} sx={absorbListPadding}>
+            {llm.hidden ? <VisibilityOffOutlinedIcon sx={{ opacity: 0.5, fontSize: 'md' }} /> : <VisibilityOutlinedIcon />}
           </IconButton>
-        )}
+        </GoodTooltip>
 
-        <IconButton size='sm'>
-          <SettingsOutlinedIcon />
-        </IconButton>
+        <GoodTooltip title='Options'>
+          <IconButton aria-label='Configure LLM' size='sm' sx={absorbListPadding} onClick={handleLLMConfigure}>
+            <SettingsOutlinedIcon />
+          </IconButton>
+        </GoodTooltip>
 
       </ListItemButton>
     </ListItem>
@@ -66,15 +107,25 @@ function ModelItem(props: { llm: DLLM, vendor: IModelVendor, chipChat: boolean, 
 export function ModelsList(props: {
   filterSourceId: DModelSourceId | null,
   onOpenLLMOptions: (id: DLLMId) => void,
+  sx?: SxProps,
 }) {
 
   // external state
-  const { chatLLMId, fastLLMId, funcLLMId, llms } = useModelsStore(state => ({
+  const { chatLLMId, fastLLMId, funcLLMId, llms, updateLLM } = useModelsStore(state => ({
     chatLLMId: state.chatLLMId,
     fastLLMId: state.fastLLMId,
     funcLLMId: state.funcLLMId,
     llms: state.llms.filter(llm => !props.filterSourceId || llm.sId === props.filterSourceId),
-  }), shallow);
+    updateLLM: state.updateLLM,
+  }), (a, b) => a.chatLLMId === b.chatLLMId && a.fastLLMId === b.fastLLMId && a.funcLLMId === b.funcLLMId && shallow(a.llms, b.llms));
+
+
+  const { onOpenLLMOptions } = props;
+
+  const handleModelClicked = React.useCallback((llmId: DLLMId) => onOpenLLMOptions(llmId), [onOpenLLMOptions]);
+
+  const handleModelSetHidden = React.useCallback((llmId: DLLMId, hidden: boolean) => updateLLM(llmId, { hidden }), [updateLLM]);
+
 
   // find out if there's more than 1 sourceLabel in the llms array
   const multiSources = llms.length >= 2 && llms.find(llm => llm._source !== llms[0]._source);
@@ -107,17 +158,14 @@ export function ModelsList(props: {
         chipChat={llm.id === chatLLMId}
         chipFast={llm.id === fastLLMId}
         chipFunc={llm.id === funcLLMId}
-        onClick={() => props.onOpenLLMOptions(llm.id)}
+        onModelClicked={handleModelClicked}
+        onModelSetHidden={handleModelSetHidden}
       />,
     );
   }
 
   return (
-    <List variant='soft' size='sm' sx={{
-      borderRadius: 'sm',
-      pl: { xs: 0, md: 1 },
-      overflowY: 'auto',
-    }}>
+    <List variant='outlined' sx={props.sx}>
       {items.length > 0 ? items : (
         <ListItem>
           <Typography level='body-sm'>
