@@ -1,6 +1,40 @@
 import { keyframes } from '@emotion/react';
 
 
+export const animationColorBeamScatter = keyframes`
+    100%, 0% {
+        //color: rgb(183, 255, 0);
+        color: rgb(219, 255, 77);
+    }
+    25% {
+        //color: rgb(255, 251, 0);
+        color: rgb(255, 255, 128);
+    }
+    50% {
+        //color: rgba(0, 255, 81);
+        color: rgba(128, 255, 153);
+    }
+    75% {
+        //color: rgb(255, 153, 0);
+        color: rgb(255, 204, 77);
+    }`;
+
+
+export const animationColorBeamGather = keyframes`
+    100%, 0% {
+        background-color: rgb(102, 0, 51);
+    }
+    25% {
+        background-color: rgb(76, 0, 76);
+    }
+    50% {
+        background-color: rgb(63, 0, 128);
+    }
+    75% {
+        background-color: rgb(0, 0, 128);
+    }`;
+
+
 export const animationColorBlues = keyframes`
     0%, 100% {
         color: #636B74; /* Neutral main color (500) */
@@ -106,7 +140,7 @@ export const animationEnterScaleUp = keyframes`
     0% {
         opacity: 0;
         //transform: translateY(8px);
-        scale: 0.95;
+        scale: 0.98;
         //rotate: -5deg;
     }
     100% {

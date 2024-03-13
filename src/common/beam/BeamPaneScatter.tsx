@@ -1,5 +1,6 @@
 import * as React from 'react';
 
+import type { SxProps } from '@mui/joy/styles/types';
 import { Box, Button, ButtonGroup, FormControl, Typography } from '@mui/joy';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
@@ -7,8 +8,33 @@ import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import { FormLabelStart } from '~/common/components/forms/FormLabelStart';
 import { animationEnterBelow } from '~/common/util/animUtils';
 
+import { CONTROLS_RAY_PRESETS } from './BeamRayGrid';
 
-export function BeamHeader(props: {
+
+export const beamControlsSx: SxProps = {
+  // style
+  // borderRadius: 'md',
+  // backgroundColor: 'background.popup',
+  backgroundColor: 'background.surface',
+  boxShadow: 'md',
+  p: 'var(--Pad)',
+  zIndex: 1, // stay on top of messages, for shadow to cast on it
+};
+
+const beamScatterControlsSx: SxProps = {
+  ...beamControlsSx,
+
+  // layout: max 2 cols (/3 with gap) of min 200px per col
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(max(200px, 100%/4), 1fr))',
+  gridAutoFlow: 'row dense',
+  gap: 'var(--Pad_2)',
+
+  // '& > *': { border: '1px solid red' },
+};
+
+
+export function BeamPaneScatter(props: {
   isMobile: boolean,
   llmComponent: React.ReactNode,
   rayCount: number,
@@ -20,26 +46,7 @@ export function BeamHeader(props: {
 }) {
 
   return (
-    <Box
-      // variant='outlined'
-      sx={{
-        // style
-        // borderRadius: 'md',
-        // backgroundColor: 'background.popup',
-        backgroundColor: 'background.surface',
-        boxShadow: 'md',
-        p: 'var(--Pad)',
-        zIndex: 1, // stay on top of the user message, for shadow to cast on it
-
-        // layout: max 2 cols (/3 with gap) of min 200px per col
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(max(200px, 100%/4), 1fr))',
-        gridAutoFlow: 'row dense',
-        gap: 'var(--Pad_2)',
-
-        // '& > *': { border: '1px solid red' },
-      }}
-    >
+    <Box sx={beamScatterControlsSx}>
 
       {/* Title */}
       <Box sx={{ display: 'flex', gap: 'var(--Pad_2)', my: 'auto' }}>
@@ -53,7 +60,8 @@ export function BeamHeader(props: {
           </Typography>
 
           <Typography level='body-sm'>
-            Combine the smarts of models
+            Explore the solution space
+            {/*Combine the smarts of models*/}
           </Typography>
         </div>
       </Box>
@@ -70,7 +78,7 @@ export function BeamHeader(props: {
 
           {/* xN buttons */}
           <ButtonGroup variant='outlined' sx={{ flex: 1, display: 'flex', '& > *': { flex: 1 } }}>
-            {[2, 4, 8].map((n) => {
+            {CONTROLS_RAY_PRESETS.map((n) => {
               const isActive = n === props.rayCount;
               return (
                 <Button

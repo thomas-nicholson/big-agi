@@ -100,6 +100,7 @@ export function Composer(props: {
 }) {
 
   // state
+  const [chatModeId, setChatModeId] = React.useState<ChatModeId>('generate-text');
   const [composeText, debouncedText, setComposeText] = useDebouncer('', 300, 1200, true);
   const [micContinuation, setMicContinuation] = React.useState(false);
   const [speechInterimResult, setSpeechInterimResult] = React.useState<SpeechResult | null>(null);
@@ -113,7 +114,6 @@ export function Composer(props: {
     labsCameraDesktop: state.labsCameraDesktop,
   }), shallow);
   const { novel: explainShiftEnter, touch: touchShiftEnter } = useUICounter('composer-shift-enter');
-  const [chatModeId, setChatModeId] = React.useState<ChatModeId>('generate-text');
   const [startupText, setStartupText] = useComposerStartupText();
   const enterIsNewline = useUIPreferencesStore(state => state.enterIsNewline);
   const chatMicTimeoutMs = useChatMicTimeoutMsValue();
@@ -488,9 +488,9 @@ export function Composer(props: {
   let textPlaceholder: string =
     isDraw ? 'Describe an idea or a drawing...'
       : isReAct ? 'Multi-step reasoning question...'
-        : isTextBeam ? 'Multi-chat with this persona...'
+        : isTextBeam ? 'Beam: combine the smarts of models...'
           : props.isDeveloperMode ? 'Chat with me' + (isDesktop ? ' · drop source' : '') + ' · attach code...'
-            : props.capabilityHasT2I ? 'Chat · /react · /draw · drop files...'
+            : props.capabilityHasT2I ? 'Chat · /beam · /draw · drop files...'
               : 'Chat · /react · drop files...';
   if (isDesktop && explainShiftEnter)
     textPlaceholder += !enterIsNewline ? '\nShift+Enter to add a new line' : '\nShift+Enter to send';

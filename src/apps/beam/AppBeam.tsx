@@ -4,8 +4,9 @@ import { Box, Button, Typography } from '@mui/joy';
 
 import { useModelsStore } from '~/modules/llms/store-llms';
 
+import { BeamStoreApi, useBeamStore } from '~/common/beam/store-beam.hooks';
 import { BeamView } from '~/common/beam/BeamView';
-import { BeamStoreApi, createBeamStore, useBeamStore } from '~/common/beam/store-beam';
+import { createBeamStore } from '~/common/beam/store-beam';
 import { createDConversation, createDMessage, DConversation, DMessage } from '~/common/state/store-chats';
 import { useIsMobile } from '~/common/components/useMatchMedia';
 import { usePluggableOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
@@ -18,9 +19,8 @@ function initTestConversation(): DConversation {
   return conversation;
 }
 
-function initTestBeam(messages: DMessage[]): BeamStoreApi {
-  const beamStore = createBeamStore();
-  beamStore.getState().open(messages, useModelsStore.getState().chatLLMId);
+function initTestBeamStore(messages: DMessage[], beamStore: BeamStoreApi = createBeamStore()): BeamStoreApi {
+  beamStore.getState().open(messages, useModelsStore.getState().chatLLMId, () => null);
   return beamStore;
 }
 
@@ -28,13 +28,19 @@ function initTestBeam(messages: DMessage[]): BeamStoreApi {
 export function AppBeam() {
 
   // state
-  const conversation = React.useRef<DConversation>(initTestConversation());
-  const beamStoreApi = React.useRef(initTestBeam(conversation.current.messages)).current;
   const [showDebug, setShowDebug] = React.useState(false);
+  const conversation = React.useRef<DConversation>(initTestConversation());
+  const beamStoreApi = React.useRef(initTestBeamStore(conversation.current.messages)).current;
 
   // external state
   const isMobile = useIsMobile();
-  const beamStore = useBeamStore(beamStoreApi, state => state);
+  const beamState = useBeamStore(beamStoreApi, state => state);
+
+
+  const handleClose = React.useCallback(() => {
+    beamStoreApi.getState().terminate();
+  }, [beamStoreApi]);
+
 
   // layout
   usePluggableOptimaLayout(null, React.useMemo(() => <>
@@ -46,21 +52,28 @@ export function AppBeam() {
     {/* 'open' */}
     <Button size='sm' variant='plain' color='neutral' onClick={() => {
       conversation.current = initTestConversation();
-      beamStoreApi.getState().open(conversation.current.messages, useModelsStore.getState().chatLLMId);
+      initTestBeamStore(conversation.current.messages, beamStoreApi);
     }}>
       .open
     </Button>
 
     {/* 'close' */}
-    <Button size='sm' variant='plain' color='neutral' onClick={() => beamStoreApi.getState().close()}>
+    <Button size='sm' variant='plain' color='neutral' onClick={handleClose}>
       .close
     </Button>
-  </>, [beamStoreApi, showDebug]), null, 'AppBeam');
+  </>, [beamStoreApi, handleClose, showDebug]), null, 'AppBeam');
+
 
   return (
     <Box sx={{ flexGrow: 1, overflowY: 'auto', position: 'relative' }}>
 
-      <BeamView beamStore={beamStoreApi} isMobile={isMobile} sx={{ height: '100%' }} />
+      {beamState.isOpen && (
+        <BeamView
+          beamStore={beamStoreApi}
+          isMobile={isMobile}
+          sx={{ height: '100%' }}
+        />
+      )}
 
       {showDebug && (
         <Typography level='body-xs' sx={{
@@ -71,7 +84,7 @@ export function AppBeam() {
           backdropFilter: 'blur(8px)',
           padding: '1rem',
         }}>
-          {JSON.stringify({ conversationId: conversation.current.id, beamStore }, null, 2)}
+          {JSON.stringify({ conversationId: conversation.current.id, beamState }, null, 2)}
         </Typography>
       )}
 
