@@ -6,21 +6,18 @@ import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRou
 
 import type { DLLMId } from '~/modules/llms/store-llms';
 
-import { BeamRay, RayCard } from './BeamRay';
+import type { BeamStoreApi } from '../store-beam.hooks';
+import { BeamCard } from '../BeamCard';
+import { SCATTER_RAY_MAX, SCATTER_RAY_MIN } from '../beam.config';
 
-
-// component configuration
-export const MIN_RAY_COUNT = 1;
-export const DEF_RAY_COUNT = 2;
-export const MAX_RAY_COUNT = 8;
-export const CONTROLS_RAY_PRESETS = [2, 4, 8];
+import { BeamRay } from './BeamRay';
 
 
 const beamRayGridDesktopSx: SxProps = {
   mx: 'var(--Pad)',
   mb: 'auto',
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 360px), 1fr))',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(max(min(100%, 390px), 100%/5), 1fr))',
   gap: 'var(--Pad)',
 } as const;
 
@@ -31,15 +28,14 @@ const beamRayGridMobileSx: SxProps = {
 
 
 export function BeamRayGrid(props: {
-  beamStore: any,
-  gatherLlmId: DLLMId | null,
+  beamStore: BeamStoreApi,
   isMobile: boolean,
-  rayIds: string[],
+  linkedLlmId: DLLMId | null,
   onIncreaseRayCount: () => void,
+  rayIds: string[],
 }) {
 
   const raysCount = props.rayIds.length;
-
 
   return (
     <Box sx={props.isMobile ? beamRayGridMobileSx : beamRayGridDesktopSx}>
@@ -49,16 +45,16 @@ export function BeamRayGrid(props: {
         <BeamRay
           key={'ray-' + rayId}
           beamStore={props.beamStore}
-          rayId={rayId}
           isMobile={props.isMobile}
-          isRemovable={raysCount > MIN_RAY_COUNT}
-          gatherLlmId={props.gatherLlmId}
+          isRemovable={raysCount > SCATTER_RAY_MIN}
+          linkedLlmId={props.linkedLlmId}
+          rayId={rayId}
         />
       ))}
 
       {/* Add Ray */}
-      {raysCount < MAX_RAY_COUNT && (
-        <RayCard sx={{ mb: 'auto' }}>
+      {raysCount < SCATTER_RAY_MAX && (
+        <BeamCard sx={{ mb: 'auto' }}>
           <Button variant='plain' color='neutral' onClick={props.onIncreaseRayCount} sx={{
             minHeight: 'calc(2 * var(--Card-padding) + 2rem - 0.5rem)',
             marginBlock: 'calc(-1 * var(--Card-padding) + 0.25rem)',
@@ -67,7 +63,7 @@ export function BeamRayGrid(props: {
           }}>
             <AddCircleOutlineRoundedIcon />
           </Button>
-        </RayCard>
+        </BeamCard>
       )}
 
     </Box>

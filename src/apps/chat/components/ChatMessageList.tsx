@@ -10,17 +10,17 @@ import type { ConversationHandler } from '~/common/chats/ConversationHandler';
 import { InlineError } from '~/common/components/InlineError';
 import { PreferencesTab, useOptimaLayout } from '~/common/layout/optima/useOptimaLayout';
 import { ShortcutKeyName, useGlobalShortcut } from '~/common/components/useGlobalShortcut';
-import { createDMessage, DConversationId, DMessage, getConversation, useChatStore } from '~/common/state/store-chats';
+import { createDMessage, DConversationId, DMessage, DMessageUserFlag, getConversation, messageToggleUserFlag, useChatStore } from '~/common/state/store-chats';
 import { useBrowserTranslationWarning } from '~/common/components/useIsBrowserTranslating';
 import { useCapabilityElevenLabs } from '~/common/components/useCapabilities';
 import { useEphemerals } from '~/common/chats/EphemeralsStore';
+import { useScrollToBottom } from '~/common/scroll-to-bottom/useScrollToBottom';
 
 import { ChatMessage, ChatMessageMemo } from './message/ChatMessage';
 import { CleanerMessage, MessagesSelectionHeader } from './message/CleanerMessage';
 import { Ephemerals } from './Ephemerals';
 import { PersonaSelector } from './persona-selector/PersonaSelector';
 import { useChatShowSystemMessages } from '../store-app-chat';
-import { useScrollToBottom } from './scroll-to-bottom/useScrollToBottom';
 
 
 /**
@@ -93,11 +93,18 @@ export function ChatMessageList(props: {
       const truncatedHistory = messages.slice(0, messages.findIndex(m => m.id === messageId) + 1);
       const lastMessage = truncatedHistory[truncatedHistory.length - 1];
       if (lastMessage) {
+        // assistant: do an in-place beam
         if (lastMessage.role === 'assistant') {
           if (truncatedHistory.length >= 2)
-            props.conversationHandler.beamReplaceMessage(truncatedHistory.slice(0, -1), [lastMessage], lastMessage.id);
-        } else
-          props.conversationHandler.beamGenerate(truncatedHistory);
+            props.conversationHandler.beamInvoke(truncatedHistory.slice(0, -1), [lastMessage], lastMessage.id);
+        } else {
+          // user: truncate and append (but if the next message is an assistant message, import it)
+          const nextMessage = messages[truncatedHistory.length];
+          if (nextMessage?.role === 'assistant')
+            props.conversationHandler.beamInvoke(truncatedHistory, [nextMessage], null);
+          else
+            props.conversationHandler.beamInvoke(truncatedHistory, [], null);
+        }
       }
     }
   }, [conversationId, props.conversationHandler]);
@@ -120,6 +127,12 @@ export function ChatMessageList(props: {
 
   const handleMessageEdit = React.useCallback((messageId: string, newText: string) => {
     conversationId && editMessage(conversationId, messageId, { text: newText }, true);
+  }, [conversationId, editMessage]);
+
+  const handleMessageToggleUserFlag = React.useCallback((messageId: string, userFlag: DMessageUserFlag) => {
+    conversationId && editMessage(conversationId, messageId, (message) => ({
+      userFlags: messageToggleUserFlag(message, userFlag),
+    }), false);
   }, [conversationId, editMessage]);
 
   const handleTextDiagram = React.useCallback(async (messageId: string, text: string) => {
@@ -260,6 +273,7 @@ export function ChatMessageList(props: {
               onMessageBranch={handleMessageBranch}
               onMessageDelete={handleMessageDelete}
               onMessageEdit={handleMessageEdit}
+              onMessageToggleUserFlag={handleMessageToggleUserFlag}
               onMessageTruncate={handleMessageTruncate}
               onTextDiagram={handleTextDiagram}
               onTextImagine={handleTextImagine}
